@@ -42,7 +42,7 @@ bun install
   ### Build Extension Output
 
   ```bash
-  bun run --filter extension build
+  bun run build --filter=extension
   ```
 
   Output path:
@@ -80,7 +80,47 @@ bun install
 After extension code changes:
 
 ```bash
-bun run --filter extension build
+bun run build --filter=extension
 ```
 
 Then in `chrome://extensions`, click reload on the Crikket extension.
+
+## Recording from the popup
+
+Video capture uses Chrome `tabCapture` from the extension popup:
+
+- Tab video is recorded together with tab audio and the microphone.
+- Tab audio keeps playing in the source tab (it is routed back after capture).
+- If you deny microphone permission, recording falls back to tab audio only
+  and shows a warning.
+- A tab that is not playing audio still records video.
+
+**Switching tabs mid-recording is not supported.** Stay on the tab you started
+capturing until you stop.
+
+## Point the extension at another host
+
+The packed extension reads `VITE_APP_URL` and `VITE_SERVER_URL` **at build
+time**. Those values are not hardcoded. For Kode GT production both are
+`https://crikket.kodegt.com`. For local development they default to
+`http://localhost:3001` and `http://localhost:3000`.
+
+Build for a different deployment:
+
+```bash
+VITE_APP_URL=https://your-host.example \
+VITE_SERVER_URL=https://your-host.example \
+  bun run build --filter=extension
+```
+
+Then load `apps/extension/.output/chrome-mv3` unpacked, or zip it with:
+
+```bash
+bash ./scripts/package-extension.sh
+```
+
+On this fork, the `CI` workflow job **Package extension (Load unpacked)**
+builds with `VITE_APP_URL` / `VITE_SERVER_URL` set to
+`https://crikket.kodegt.com` and uploads `crikket-extension-chrome-mv3`.
+Download the zip from the workflow run, unzip it, and load the `chrome-mv3`
+folder in `chrome://extensions`.

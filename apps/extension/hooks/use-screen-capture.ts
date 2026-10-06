@@ -1,12 +1,29 @@
 import { useCallback, useRef, useState } from "react"
-import { readAndClearCaptureTabId } from "@/lib/capture-context"
+import {
+  AUDIO_CAPTURE_WARNING_STORAGE_KEY,
+  MICROPHONE_CAPTURE_ALLOWED_STORAGE_KEY,
+  readAndClearCaptureTabId,
+} from "@/lib/capture-context"
+import { TAB_CAPTURE_LOCK_ERROR } from "@/lib/capture-messages"
 import { requestTabCaptureStream } from "@/lib/display-media"
+import { toFriendlyCaptureError } from "@/lib/media-errors"
+import {
+  createMediaRecorderSession,
+  type MediaRecorderSession,
+} from "@/lib/media-recorder-session"
+import { requestMicrophoneStream } from "@/lib/microphone"
+import {
+  createMixedCapture,
+  type MixedCapture,
+  stopMediaStreamTracks,
+} from "@/lib/tab-audio-mixer"
 
 export interface UseScreenCaptureReturn {
   isRecording: boolean
   recordedBlob: Blob | null
   screenshotBlob: Blob | null
   error: string | null
+  warning: string | null
   startRecording: () => Promise<boolean>
   stopRecording: () => Promise<Blob | null>
   takeScreenshot: () => Promise<Blob | null>
@@ -20,94 +37,102 @@ export function useScreenCapture(): UseScreenCaptureReturn {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
   const [screenshotBlob, setScreenshotBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  const sessionRef = useRef<MediaRecorderSession | null>(null)
+  const mixedCaptureRef = useRef<MixedCapture | null>(null)
+
+  const getSession = useCallback((): MediaRecorderSession => {
+    if (!sessionRef.current) {
+      sessionRef.current = createMediaRecorderSession()
+    }
+    return sessionRef.current
+  }, [])
+
+  const disposeCaptureGraph = useCallback(() => {
+    mixedCaptureRef.current?.dispose()
+    mixedCaptureRef.current = null
+  }, [])
 
   const startRecording = useCallback(async (): Promise<boolean> => {
     try {
       setError(null)
+      setWarning(null)
       setRecordedBlob(null)
+
+      const session = getSession()
+      await session.reset()
+      disposeCaptureGraph()
 
       const captureTabId = await readAndClearCaptureTabId()
       if (!captureTabId) {
-        throw new Error(
-          "Could not lock the source tab. Please start recording from the extension popup."
-        )
+        throw new Error(TAB_CAPTURE_LOCK_ERROR)
       }
 
-      const stream = await requestTabCaptureStream(captureTabId)
+      const stored = await chrome.storage.local.get([
+        MICROPHONE_CAPTURE_ALLOWED_STORAGE_KEY,
+        AUDIO_CAPTURE_WARNING_STORAGE_KEY,
+      ])
+      await chrome.storage.local.remove([
+        MICROPHONE_CAPTURE_ALLOWED_STORAGE_KEY,
+        AUDIO_CAPTURE_WARNING_STORAGE_KEY,
+      ])
 
-      streamRef.current = stream
+      const storedWarning = stored[AUDIO_CAPTURE_WARNING_STORAGE_KEY]
+      const microphoneAllowed = stored[MICROPHONE_CAPTURE_ALLOWED_STORAGE_KEY]
+      let audioWarning =
+        typeof storedWarning === "string" ? storedWarning : null
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "video/webm;codecs=vp9",
+      const tabStream = await requestTabCaptureStream(captureTabId)
+
+      let micStream: MediaStream | null = null
+      if (microphoneAllowed !== false) {
+        const microphone = await requestMicrophoneStream()
+        micStream = microphone.stream
+        audioWarning = microphone.warning ?? audioWarning
+      }
+
+      const mixedCapture = await createMixedCapture({
+        micStream,
+        tabStream,
       })
+      mixedCaptureRef.current = mixedCapture
 
-      mediaRecorderRef.current = mediaRecorder
-      chunksRef.current = []
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data)
-        }
-      }
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" })
-        setRecordedBlob(blob)
-        setIsRecording(false)
-
-        for (const track of stream.getTracks()) {
-          track.stop()
-        }
-      }
-      stream.getVideoTracks()[0].onended = () => {
-        if (mediaRecorderRef.current?.state === "recording") {
-          mediaRecorderRef.current.stop()
-        }
-      }
-
-      mediaRecorder.start(1000)
+      await session.start(mixedCapture.recordingStream, mixedCapture.hasAudio)
+      setWarning(audioWarning)
       setIsRecording(true)
       return true
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to start recording"
-      setError(message)
+      disposeCaptureGraph()
+      const friendly = toFriendlyCaptureError(err, "Failed to start recording")
+      setError(friendly.message)
       setIsRecording(false)
       return false
     }
-  }, [])
+  }, [disposeCaptureGraph, getSession])
 
-  const stopRecording = useCallback((): Promise<Blob | null> => {
-    return new Promise((resolve) => {
-      if (
-        !mediaRecorderRef.current ||
-        mediaRecorderRef.current.state !== "recording"
-      ) {
-        resolve(null)
-        return
-      }
+  const stopRecording = useCallback(async (): Promise<Blob | null> => {
+    const session = sessionRef.current
+    if (!session) {
+      disposeCaptureGraph()
+      setIsRecording(false)
+      return null
+    }
 
-      mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" })
-        setRecordedBlob(blob)
-        setIsRecording(false)
-
-        if (streamRef.current) {
-          for (const track of streamRef.current.getTracks()) {
-            track.stop()
-          }
-        }
-
-        resolve(blob)
-      }
-
-      mediaRecorderRef.current.stop()
-    })
-  }, [])
+    try {
+      const blob = await session.stop()
+      disposeCaptureGraph()
+      setRecordedBlob(blob)
+      setIsRecording(false)
+      return blob
+    } catch (err) {
+      disposeCaptureGraph()
+      const friendly = toFriendlyCaptureError(err, "Failed to stop recording")
+      setError(friendly.message)
+      setIsRecording(false)
+      return null
+    }
+  }, [disposeCaptureGraph])
 
   const takeScreenshot = useCallback(async (): Promise<Blob | null> => {
     try {
@@ -148,9 +173,7 @@ export function useScreenCapture(): UseScreenCaptureReturn {
 
       ctx.drawImage(video, 0, 0)
 
-      for (const track of stream.getTracks()) {
-        track.stop()
-      }
+      stopMediaStreamTracks(stream)
       return new Promise((resolve) => {
         canvas.toBlob((blob) => {
           setScreenshotBlob(blob)
@@ -166,26 +189,26 @@ export function useScreenCapture(): UseScreenCaptureReturn {
   }, [])
 
   const reset = useCallback(() => {
+    const session = sessionRef.current
+    if (session) {
+      session.reset().catch(() => {
+        // Reset is best-effort; a concurrent stop may already be tearing down.
+      })
+    }
+    disposeCaptureGraph()
     setRecordedBlob(null)
     setScreenshotBlob(null)
     setError(null)
+    setWarning(null)
     setIsRecording(false)
-
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop()
-    }
-    if (streamRef.current) {
-      for (const track of streamRef.current.getTracks()) {
-        track.stop()
-      }
-    }
-  }, [])
+  }, [disposeCaptureGraph])
 
   return {
     isRecording,
     recordedBlob,
     screenshotBlob,
     error,
+    warning,
     startRecording,
     stopRecording,
     takeScreenshot,

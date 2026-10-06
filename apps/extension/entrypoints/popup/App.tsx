@@ -15,6 +15,7 @@ function App() {
   const shortcuts = useCommandShortcuts()
   const {
     captureError,
+    audioWarning,
     clearPendingCapture,
     isCapturing,
     pendingCaptureType,
@@ -68,6 +69,12 @@ function App() {
           </div>
         ) : null}
 
+        {audioWarning ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+            <p className="text-amber-900 text-sm">{audioWarning}</p>
+          </div>
+        ) : null}
+
         <PopupCaptureActions
           isBusy={isBusy}
           isRecordingInProgress={isRecordingInProgress}
@@ -85,8 +92,10 @@ function App() {
 
         <div className="rounded-md border bg-muted p-3">
           <p className="text-muted-foreground text-xs leading-relaxed">
-            We only capture your current browser tab. A new tab will open for
-            you to review and submit your report.
+            We capture your current browser tab with tab audio and microphone
+            mixed together. Stay on that tab while recording — switching tabs
+            mid-recording is not supported. A new tab opens so you can review
+            and submit the report.
           </p>
         </div>
 

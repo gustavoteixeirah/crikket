@@ -1,17 +1,20 @@
 import { Button } from "@crikket/ui/components/ui/button"
 import { ShortcutKbd } from "@/components/shortcut-kbd"
+import { TAB_SWITCH_UNSUPPORTED_HINT } from "@/lib/capture-messages"
 import { formatDuration } from "../lib/utils"
 
 interface RecordingStepProps {
   duration: number
   onStopRecording: () => void
   stopRecordingShortcut: string | null
+  audioWarning?: string | null
 }
 
 export function RecordingStep({
   duration,
   onStopRecording,
   stopRecordingShortcut,
+  audioWarning,
 }: RecordingStepProps) {
   return (
     <div className="flex flex-col items-center justify-center space-y-6 py-12">
@@ -21,6 +24,12 @@ export function RecordingStep({
           {formatDuration(duration)}
         </p>
       </div>
+
+      {audioWarning ? (
+        <p className="max-w-md rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-center text-amber-900 text-sm">
+          {audioWarning}
+        </p>
+      ) : null}
 
       <Button
         className="flex min-w-[200px] items-center gap-3 font-semibold text-lg"
@@ -38,6 +47,9 @@ export function RecordingStep({
       <p className="max-w-md text-center text-muted-foreground text-sm">
         Click "Stop Recording" when you're done capturing the issue. You'll be
         able to add details and submit your bug report next.
+      </p>
+      <p className="max-w-md text-center text-muted-foreground text-sm">
+        {TAB_SWITCH_UNSUPPORTED_HINT}
       </p>
     </div>
   )
