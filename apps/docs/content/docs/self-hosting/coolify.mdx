@@ -27,6 +27,7 @@ Dockerfile build pack).
 
 - `server` and `migrate` from `apps/server/Dockerfile`
 - `web` from `apps/web/Dockerfile`
+- `proxy` from `caddy:2.10-alpine` with `Caddyfile.coolify` (`:8080`)
 
 Public `NEXT_PUBLIC_*` (and `VITE_*`) values are passed as **build args** from
 the Coolify environment. The web image entrypoint still substitutes runtime
@@ -36,19 +37,31 @@ Do not commit secret values. Coolify supplies them.
 
 ## Domains and ports
 
-`web` uses `network_mode: service:server` and has no network identity. **Do not
-assign a Coolify domain to `web`.**
+Assign the public FQDN on the **`proxy`** service, container port **8080**.
+Coolify's proxy terminates TLS and forwards there. Do not publish host ports
+in the compose file (no `ports:` mappings). Do not set `container_name`.
 
-Assign FQDNs on the **`server`** service:
+`web` uses `network_mode: service:server` and has no network identity. **Do
+not assign a Coolify domain to `web` or `server`.**
 
-| Role | Container port |
+`Caddyfile.coolify` routes:
+
+| Path | Upstream |
 | --- | --- |
-| Next.js UI | `3001` |
-| Hono API | `3000` |
+| `/api/*`, `/rpc/*` | `server:3000` (Hono) |
+| everything else | `server:3001` (Next.js in the server network namespace) |
 
-For a single hostname (app + `/api` + `/rpc`), configure Coolify's proxy like
-the repo `Caddyfile`, or put an extra hostname on port `3000`. Do not expose
-Postgres (`5432`) on the proxy.
+Do not expose Postgres (`5432`) on the proxy.
+
+## Postgres volume
+
+The compose file declares `postgres_data` as an **external** volume named
+`rk2h1ywgegcu9qyq45m4evoz_crikket-pg` so Kode GT production reuses the
+existing Coolify data directory.
+
+If you are **not** that Coolify project, change `name` or remove both `name`
+and `external: true` so Compose creates a new volume. Leaving the Kode GT
+volume name on another host will fail (`external volume not found`).
 
 ## Required environment names
 
@@ -91,15 +104,19 @@ Only if you use the `postgres` service in this compose file (not Aurora):
 - `POSTGRES_PASSWORD`
 - `POSTGRES_DB`
 - `POSTGRES_HOST_AUTH_METHOD`
-- `POSTGRES_PORT`
 
 Then set `DATABASE_URL` to `postgresql://USER:PASSWORD@postgres:5432/DB`.
 
 ## Local build check
 
 ```bash
+docker compose -f docker-compose.coolify.yml config
 docker compose -f docker-compose.coolify.yml build
 ```
+
+`config` does not need the external production volume to exist. `up` on a
+machine that is not Kode GT Coolify will fail until you change or remove the
+`external` volume.
 
 Runtime `up` still needs the environment names above. Upstream
 `docker-compose.yml` remains the image-pull self-host path.

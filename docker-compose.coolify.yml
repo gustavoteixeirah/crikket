@@ -3,6 +3,14 @@
 # Do not commit secret values. Set names in Coolify; interpolation reads them
 # from the project environment / `.env`.
 #
+# Production (crikket.kodegt.com): route the public hostname to the `proxy`
+# service on container port 8080. No host port bindings — Coolify's proxy
+# handles exposure. Do not set `container_name` (Coolify assigns names).
+#
+# The postgres volume is an **external** Coolify volume so Kode GT production
+# reuses existing data. Self-hosters must change `name` or remove `external`
+# (and the `name`) so Compose creates a new volume.
+#
 # Upstream image-based files (`docker-compose.yml`,
 # `docker-compose.external-db.yml`) are unchanged.
 
@@ -51,26 +59,26 @@ x-server-environment: &server-environment
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: crikket-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: ${POSTGRES_DB:-crikket}
       POSTGRES_HOST_AUTH_METHOD: ${POSTGRES_HOST_AUTH_METHOD:-trust}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-crikket}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-crikket}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
 
   server:
     <<: *server-image
-    container_name: crikket-server
     restart: unless-stopped
     depends_on:
       postgres:
@@ -79,9 +87,6 @@ services:
         condition: service_completed_successfully
     environment:
       <<: *server-environment
-    ports:
-      - "${SERVER_PORT:-3000}:3000"
-      - "${WEB_PORT:-3001}:3001"
     healthcheck:
       test:
         [
@@ -121,7 +126,6 @@ services:
         VITE_APP_URL: ${VITE_APP_URL:-}
         VITE_SERVER_URL: ${VITE_SERVER_URL:-}
     pull_policy: never
-    container_name: crikket-web
     restart: unless-stopped
     depends_on:
       server:
@@ -151,5 +155,18 @@ services:
       timeout: 5s
       retries: 12
 
+  proxy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile.coolify:/etc/caddy/Caddyfile:ro
+    depends_on:
+      server:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+
 volumes:
   postgres_data:
+    name: rk2h1ywgegcu9qyq45m4evoz_crikket-pg
+    external: true

@@ -1,0 +1,17 @@
+# Coolify in-stack Caddy. Coolify's proxy terminates TLS and routes the
+# public hostname to this container on :8080.
+# `web` shares the `server` network namespace, so UI traffic goes to
+# server:3001 (same as the repo Caddyfile).
+
+:8080 {
+	encode gzip zstd
+
+	@api path /api/* /rpc/*
+	handle @api {
+		reverse_proxy server:3000
+	}
+
+	handle {
+		reverse_proxy server:3001
+	}
+}
