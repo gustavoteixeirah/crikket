@@ -16,7 +16,10 @@ import type { BugReportArtifactKind } from "./artifact-storage"
 
 export interface StorageProvider {
   save(filename: string, data: Buffer | Blob): Promise<void>
-  getUrl(filename: string): Promise<string>
+  getUrl(
+    filename: string,
+    options?: { expiresInSeconds?: number }
+  ): Promise<string>
   createUploadUrl(input: { filename: string; contentType?: string }): Promise<{
     headers: Record<string, string>
     method: "PUT"
@@ -64,7 +67,10 @@ export function createS3StorageProvider(
     },
   })
 
-  const getUrl = (filename: string): Promise<string> => {
+  const getUrl = (
+    filename: string,
+    urlOptions?: { expiresInSeconds?: number }
+  ): Promise<string> => {
     if (options.publicUrl) {
       return Promise.resolve(
         `${trimTrailingSlash(options.publicUrl)}/${encodePathSegment(filename)}`
@@ -78,7 +84,8 @@ export function createS3StorageProvider(
         Key: filename,
       }),
       {
-        expiresIn: PRESIGNED_GET_URL_TTL_SECONDS,
+        expiresIn:
+          urlOptions?.expiresInSeconds ?? PRESIGNED_GET_URL_TTL_SECONDS,
       }
     )
   }
@@ -188,14 +195,25 @@ export function getStorageProvider(): StorageProvider {
   return storageProvider
 }
 
-export async function resolveCaptureUrl(input: {
+export function resolveCaptureUrl(input: {
   captureKey: string | null
 }): Promise<string | null> {
-  if (!input.captureKey) {
+  return resolveArtifactUrl({
+    objectKey: input.captureKey,
+  })
+}
+
+export async function resolveArtifactUrl(input: {
+  expiresInSeconds?: number
+  objectKey: string | null
+}): Promise<string | null> {
+  if (!input.objectKey) {
     return null
   }
 
-  return await storageProvider.getUrl(input.captureKey)
+  return await storageProvider.getUrl(input.objectKey, {
+    expiresInSeconds: input.expiresInSeconds,
+  })
 }
 
 export function isExpiringSignedUrl(url: string): boolean {
