@@ -10,6 +10,7 @@ import { authenticateOrganizationApiKey } from "@crikket/auth/lib/organization-a
 import { runBugReportIngestionPass } from "@crikket/bug-reports/lib/ingestion-jobs"
 import { runStalePendingBugReportCleanupPass } from "@crikket/bug-reports/lib/orphan-cleanup"
 import { runArtifactCleanupPass } from "@crikket/bug-reports/lib/storage"
+import { runWebhookDeliveryPass } from "@crikket/bug-reports/lib/webhooks/delivery"
 import { env } from "@crikket/env/server"
 import { OpenAPIHandler } from "@orpc/openapi/fetch"
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins"
@@ -33,6 +34,7 @@ const MAX_RPC_REQUEST_BODY_BYTES = 110 * 1024 * 1024
 const BUG_REPORT_INGESTION_INTERVAL_MS = 60 * 1000
 const BUG_REPORT_ORPHAN_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
 const STORAGE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
+const WEBHOOK_DELIVERY_INTERVAL_MS = 15 * 1000
 type RateLimitHeaders = Record<string, string>
 
 function parseHeaderNumber(value: string | undefined): number | null {
@@ -191,6 +193,14 @@ const orphanCleanupInterval = setInterval(() => {
 }, BUG_REPORT_ORPHAN_CLEANUP_INTERVAL_MS)
 
 orphanCleanupInterval.unref?.()
+
+const webhookDeliveryInterval = setInterval(() => {
+  runWebhookDeliveryPass({ limit: 10 }).catch((error: unknown) => {
+    console.error("[webhook-delivery] failed scheduled delivery pass", error)
+  })
+}, WEBHOOK_DELIVERY_INTERVAL_MS)
+
+webhookDeliveryInterval.unref?.()
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   plugins: [

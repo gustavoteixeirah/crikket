@@ -32,7 +32,7 @@ export async function requireActiveOrgAdmin(
   if (!(activeMember && isOrgAdminRole(activeMember.role))) {
     throw new ORPCError("FORBIDDEN", {
       message:
-        "Only organization admins or owners can manage capture widget keys.",
+        "Only organization admins or owners can manage this organization setting.",
     })
   }
 

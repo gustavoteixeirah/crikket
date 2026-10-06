@@ -1,0 +1,138 @@
+---
+title: Outbound Webhooks
+description: Signed report.ready events for n8n, Slack, and AI agents after ingest.
+---
+
+Crikket can POST a signed `report.ready` event when a bug report finishes
+ingest (`submission_status = ready`). Delivery is asynchronous: the ingest
+request is never blocked on the remote webhook. Failed deliveries retry with
+exponential backoff (8 attempts, 2 minutes through 4 hours).
+
+Configure the URL and signing secret in **Settings → Webhooks** as an
+organization owner or admin.
+
+## Environment variables
+
+| Name | Required | Purpose |
+| --- | --- | --- |
+| `WEBHOOK_ALLOW_PRIVATE_URLS` | no (default `false`) | When `true`, allow http and private/loopback destinations (self-hosted n8n). Leave `false` in production SaaS. |
+| `WEBHOOK_APP_BASE_URL` | no | Public app origin used in `data.report.url` and media `appUrl`. Falls back to the first `CORS_ORIGINS` entry, then `BETTER_AUTH_URL`. |
+
+Set names in Coolify. Do not commit values.
+
+Private/loopback webhook URLs are blocked unless
+`WEBHOOK_ALLOW_PRIVATE_URLS=true`. Enable that only when the Crikket server
+must reach an internal n8n or agent.
+
+## Event: `report.ready`
+
+Fired after capture (and debugger payload, if present) is fully ingested.
+Not fired on upload-session start.
+
+Signed capture URLs in `data.report.media.url` expire after **1 hour**.
+`data.report.media.appUrl` and `data.report.url` are durable app links
+(`/s/{id}`). If `STORAGE_PUBLIC_URL` is set, `media.url` is a public object
+URL and `expiresAt` is `null`.
+
+### Headers
+
+| Header | Value |
+| --- | --- |
+| `Content-Type` | `application/json` |
+| `X-Crikket-Event` | `report.ready` |
+| `X-Crikket-Timestamp` | Unix time in seconds |
+| `X-Crikket-Signature` | `sha256=` + hex HMAC-SHA256 |
+| `X-Crikket-Delivery` | Delivery id (idempotency key) |
+
+The HMAC is computed over `"{timestamp}.{rawBody}"` using the org signing
+secret.
+
+### Example payload
+
+```json
+{
+  "apiVersion": "2026-10-06",
+  "id": "V1StGXR8_Z5jdHi6",
+  "type": "report.ready",
+  "createdAt": "2026-10-06T12:00:00.000Z",
+  "data": {
+    "test": false,
+    "organization": {
+      "id": "org_123",
+      "name": "Kode GT",
+      "slug": "kodegt"
+    },
+    "report": {
+      "id": "rep_123",
+      "title": "Checkout freeze",
+      "description": "Checkout button does nothing",
+      "url": "https://crikket.kodegt.com/s/rep_123",
+      "pageUrl": "https://app.example.com/checkout",
+      "reporter": {
+        "id": "user_1",
+        "name": "QA Bot",
+        "email": "qa@example.com"
+      },
+      "browser": {
+        "name": "Chrome 129",
+        "os": "macOS",
+        "viewport": "1440x900"
+      },
+      "media": {
+        "kind": "video",
+        "contentType": "video/webm",
+        "appUrl": "https://crikket.kodegt.com/s/rep_123",
+        "url": "https://storage.example/capture?X-Amz-Signature=…",
+        "expiresAt": "2026-10-06T13:00:00.000Z",
+        "expiresInSeconds": 3600
+      },
+      "debugger": {
+        "actionCount": 12,
+        "logCount": 40,
+        "networkRequestCount": 18,
+        "consoleErrorCount": 2,
+        "consoleWarningCount": 3,
+        "failedNetworkRequestCount": 1,
+        "topErrors": [
+          {
+            "level": "error",
+            "message": "Uncaught TypeError: x is not a function",
+            "timestamp": "2026-10-06T11:59:00.000Z"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+Test events from Settings set `data.test` to `true` and use a synthetic report
+id (`test_report`). Ignore those in production automations if needed.
+
+## Verify the signature (Node.js)
+
+```js
+import { createHmac, timingSafeEqual } from "node:crypto"
+
+function verifyCrikketWebhook({ body, secret, signature, timestamp }) {
+  const ageSeconds = Math.abs(Date.now() / 1000 - Number(timestamp))
+  if (!Number.isInteger(Number(timestamp)) || ageSeconds > 300) {
+    return false
+  }
+
+  const expected =
+    "sha256=" +
+    createHmac("sha256", secret)
+      .update(`${timestamp}.${body}`, "utf8")
+      .digest("hex")
+
+  const left = Buffer.from(expected)
+  const right = Buffer.from(signature)
+  return left.length === right.length && timingSafeEqual(left, right)
+}
+
+// Express / n8n Code node: use the raw JSON body string, not a re-serialized object.
+```
+
+Use `X-Crikket-Delivery` as the idempotency key so retries are not processed
+twice.

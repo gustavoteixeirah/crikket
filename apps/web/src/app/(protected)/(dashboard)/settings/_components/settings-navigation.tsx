@@ -1,7 +1,14 @@
 "use client"
 
 import { cn } from "@crikket/ui/lib/utils"
-import { Bot, Building2, CreditCard, KeyRound, UserRound } from "lucide-react"
+import {
+  Bot,
+  Building2,
+  CreditCard,
+  KeyRound,
+  UserRound,
+  Webhook,
+} from "lucide-react"
 import type { Route } from "next"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -30,6 +37,12 @@ const SETTINGS_ITEMS = [
     title: "API Keys",
     description: "Agent and MCP access",
     icon: Bot,
+  },
+  {
+    href: "/settings/webhooks",
+    title: "Webhooks",
+    description: "Report-ready events for n8n",
+    icon: Webhook,
   },
   {
     href: "/settings/billing",

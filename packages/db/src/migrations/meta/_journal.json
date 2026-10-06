@@ -15,6 +15,13 @@
       "when": 1791255352510,
       "tag": "0001_nifty_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791256140853,
+      "tag": "0002_next_mastermind",
+      "breakpoints": true
     }
   ]
 }

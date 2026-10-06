@@ -14,12 +14,13 @@ import { and, asc, eq, lte } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import type { BugReportArtifactKind } from "./artifact-storage"
 
+export interface StorageGetUrlOptions {
+  expiresInSeconds?: number
+}
+
 export interface StorageProvider {
   save(filename: string, data: Buffer | Blob): Promise<void>
-  getUrl(
-    filename: string,
-    options?: { expiresInSeconds?: number }
-  ): Promise<string>
+  getUrl(filename: string, options?: StorageGetUrlOptions): Promise<string>
   createUploadUrl(input: { filename: string; contentType?: string }): Promise<{
     headers: Record<string, string>
     method: "PUT"
@@ -69,7 +70,7 @@ export function createS3StorageProvider(
 
   const getUrl = (
     filename: string,
-    urlOptions?: { expiresInSeconds?: number }
+    getOptions?: StorageGetUrlOptions
   ): Promise<string> => {
     if (options.publicUrl) {
       return Promise.resolve(
@@ -85,7 +86,7 @@ export function createS3StorageProvider(
       }),
       {
         expiresIn:
-          urlOptions?.expiresInSeconds ?? PRESIGNED_GET_URL_TTL_SECONDS,
+          getOptions?.expiresInSeconds ?? PRESIGNED_GET_URL_TTL_SECONDS,
       }
     )
   }
