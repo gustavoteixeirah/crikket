@@ -1,12 +1,13 @@
 ---
 title: Coolify
-description: Deploy the Kode GT fork from Git with Docker Compose builds (not upstream GHCR images).
+description: Deploy the Kode GT fork from Git by pulling GHCR images (no VPS builds).
 ---
 
 This page is for the **Kode GT fork** (`gustavoteixeirah/crikket`, branch
 `main`). Upstream image-based compose files keep pulling
 `ghcr.io/redpangilinan/crikket-{server,web}:latest` and must not be used for
-[crikket.kodegt.com](https://crikket.kodegt.com).
+[crikket.kodegt.com](https://crikket.kodegt.com). Do not build images on the
+Coolify VPS — the web image is OOM-killed there (exit 137).
 
 Operational summary also lives in [FORK.md](https://github.com/gustavoteixeirah/crikket/blob/main/FORK.md).
 
@@ -23,12 +24,22 @@ Dockerfile build pack).
 | Compose file | `docker-compose.coolify.yml` |
 | Build pack | Docker Compose |
 
-`docker-compose.coolify.yml` builds:
+`docker-compose.coolify.yml` **pulls** (never builds) from
+`ghcr.io/gustavoteixeirah/`:
 
-- `server` and `migrate` from `apps/server/Dockerfile`
-- `web` from `apps/web/Dockerfile`
-- `proxy` from `docker/caddy/Dockerfile` (`caddy:2.10-alpine` with
+- `crikket-server:${CRIKKET_IMAGE_TAG:-main}` (`server` and `migrate`)
+- `crikket-web:${CRIKKET_IMAGE_TAG:-main}`
+- `crikket-proxy:${CRIKKET_IMAGE_TAG:-main}` (`caddy:2.10-alpine` with
   `Caddyfile.coolify` copied to `/etc/caddy/Caddyfile`, listening on `:8080`)
+
+GitHub Actions (`.github/workflows/images.yml`) builds those images on push
+to `main`. Merge, wait for **Images** to go green, then redeploy in Coolify.
+Optional pin: `CRIKKET_IMAGE_TAG=sha-<short sha>`.
+
+GHCR packages may be created private. Prefer making `crikket-web`,
+`crikket-server`, and `crikket-proxy` **Public** in GitHub package settings
+(repo is public; images contain no secrets). Otherwise add GHCR credentials
+in Coolify. See [FORK.md](https://github.com/gustavoteixeirah/crikket/blob/main/FORK.md).
 
 The Caddyfile is baked into the proxy image because Coolify turns
 single-file bind mounts into directories (`is_directory=true`), which
@@ -36,9 +47,10 @@ breaks Docker (`mount ... not a directory`). Do **not** add a Coolify
 file storage entry for `Caddyfile.coolify`. If one already exists from an
 older deploy, delete it.
 
-Public `NEXT_PUBLIC_*` (and `VITE_*`) values are passed as **build args** from
-the Coolify environment. The web image entrypoint still substitutes runtime
-placeholders, so keep the same names set at runtime.
+The Images workflow bakes `https://crikket.kodegt.com` as web `NEXT_PUBLIC_*`
+build args. The web image entrypoint still requires the three origin vars at
+runtime (compose defaults them so an empty Coolify value does not crash-loop
+web) and substitutes placeholders for optional keys.
 
 Do not commit secret values. Coolify supplies them.
 
@@ -128,12 +140,11 @@ Then set `DATABASE_URL` to `postgresql://USER:PASSWORD@postgres:5432/DB`.
 
 ```bash
 docker compose -f docker-compose.coolify.yml config
-docker compose -f docker-compose.coolify.yml build
 ```
 
-`config` does not need the production data directory to exist. `up` on a
-machine that is not Kode GT Coolify will fail or mount empty data until you
-change the postgres host bind path.
+`config` does not need the production data directory to exist and does not
+build images. `up` on a machine that is not Kode GT Coolify will fail or
+mount empty data until you change the postgres host bind path.
 
 Runtime `up` still needs the environment names above. Upstream
 `docker-compose.yml` remains the image-pull self-host path.
