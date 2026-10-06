@@ -6,7 +6,11 @@ import {
   resolveInvitationView,
 } from "@crikket/shared/lib/organization-invitation"
 
-import { resolveAuthEmailDelivery } from "../src/lib/auth-email-delivery"
+import {
+  executeAuthEmailSend,
+  resolveAuthEmailDelivery,
+} from "../src/lib/auth-email-delivery"
+import { resolveGoogleSocialProviders } from "../src/lib/google-auth"
 
 const pendingInvitation = {
   id: "inv_123",
@@ -70,6 +74,56 @@ describe("auth email delivery for invitations", () => {
       action: "skip",
       reason: "Missing RESEND_API_KEY",
     })
+  })
+
+  it("keeps invites working when Google and Resend flags are both off", () => {
+    expect(resolveGoogleSocialProviders({})).toBeUndefined()
+    expect(
+      resolveAuthEmailDelivery({
+        hasApiKey: false,
+        hasFromEmail: false,
+        nodeEnv: "production",
+        requireDelivery: false,
+      })
+    ).toEqual({
+      action: "skip",
+      reason: "Missing RESEND_API_KEY",
+    })
+    expect(
+      buildOrganizationInvitationUrl("https://crikket.kodegt.com", "inv_123")
+    ).toBe("https://crikket.kodegt.com/invite/inv_123")
+  })
+
+  it("swallows Resend send failures for optional invitation email and logs them", async () => {
+    const logged: Array<{ message: string; error: unknown }> = []
+
+    const result = await executeAuthEmailSend({
+      requireDelivery: false,
+      to: "invited@example.com",
+      logger: {
+        error(message, error) {
+          logged.push({ message, error })
+        },
+      },
+      send: () =>
+        Promise.reject(new Error("Failed to send auth email: rate limited")),
+    })
+
+    expect(result).toEqual({ delivered: false })
+    expect(logged).toHaveLength(1)
+    expect(logged[0]?.message).toContain("invited@example.com")
+    expect(logged[0]?.error).toBeInstanceOf(Error)
+  })
+
+  it("still throws Resend failures when delivery is required", async () => {
+    await expect(
+      executeAuthEmailSend({
+        requireDelivery: true,
+        to: "user@example.com",
+        send: () =>
+          Promise.reject(new Error("Failed to send auth email: rate limited")),
+      })
+    ).rejects.toThrow("Failed to send auth email: rate limited")
   })
 })
 

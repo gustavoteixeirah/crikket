@@ -36,6 +36,36 @@ describe("signup allowlist", () => {
     })
   })
 
+  it("blocks Google OAuth account creation with the same allowlist as email signup", () => {
+    const result = evaluateSignupAccess({
+      config: {
+        allowedDomains: [],
+        allowedEmails: ["allowed@example.com"],
+      },
+      email: "outsider@gmail.com",
+      mode: "create-account",
+    })
+
+    expect(result).toEqual({
+      allowed: false,
+      message:
+        "Sign up is restricted. This email address is not allowed to create an account.",
+    })
+  })
+
+  it("allows Google OAuth account creation when the Google email is on ALLOWED_SIGNUP_EMAILS", () => {
+    expect(
+      evaluateSignupAccess({
+        config: {
+          allowedDomains: [],
+          allowedEmails: ["teammate@kodegt.com"],
+        },
+        email: "teammate@kodegt.com",
+        mode: "create-account",
+      })
+    ).toEqual({ allowed: true })
+  })
+
   it("allows signup when the email domain matches ALLOWED_SIGNUP_DOMAINS", () => {
     const result = evaluateSignupAccess({
       config: {

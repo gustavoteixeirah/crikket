@@ -7,18 +7,18 @@ import { and, eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { auth } from "../index"
-import { isAuthEmailConfigured } from "../lib/email/send-auth-email"
+import { getPublicAuthConfig } from "../lib/public-auth-config"
 import { protectedProcedure, publicProcedure } from "./context"
 
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value
 }
 
-export const getAuthEmailDeliveryStatusProcedure = publicProcedure.handler(
-  () => ({
-    invitationEmailEnabled: isAuthEmailConfigured(),
-  })
+export const getPublicAuthConfigProcedure = publicProcedure.handler(() =>
+  getPublicAuthConfig()
 )
+
+export const getAuthEmailDeliveryStatusProcedure = getPublicAuthConfigProcedure
 
 export const getOrganizationInvitationProcedure = publicProcedure
   .input(

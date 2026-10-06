@@ -3,6 +3,7 @@ import {
   addExistingOrganizationMemberProcedure,
   getAuthEmailDeliveryStatusProcedure,
   getOrganizationInvitationProcedure,
+  getPublicAuthConfigProcedure,
 } from "@crikket/auth/procedures/organization-invitation"
 import {
   getMyOrganizationsProcedure,
@@ -12,6 +13,7 @@ import {
 export const authRouter = {
   addExistingOrganizationMember: addExistingOrganizationMemberProcedure,
   getAuthEmailDeliveryStatus: getAuthEmailDeliveryStatusProcedure,
+  getPublicAuthConfig: getPublicAuthConfigProcedure,
   getMyOrganizations: getMyOrganizationsProcedure,
   getOrganizationInvitation: getOrganizationInvitationProcedure,
   sendEmailVerificationOtpStrict: sendEmailVerificationOtpStrictProcedure,

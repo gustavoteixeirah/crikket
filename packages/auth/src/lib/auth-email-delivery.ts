@@ -58,3 +58,28 @@ export function isAuthEmailProviderConfigured(input: {
     }).action === "send"
   )
 }
+
+export async function executeAuthEmailSend(input: {
+  logger?: {
+    error: (message: string, error?: unknown) => void
+  }
+  requireDelivery: boolean
+  send: () => Promise<void>
+  to: string
+}): Promise<{ delivered: boolean }> {
+  try {
+    await input.send()
+    return { delivered: true }
+  } catch (error) {
+    if (input.requireDelivery) {
+      throw error
+    }
+
+    const logger = input.logger ?? console
+    logger.error(
+      `[email] Failed to send optional auth email to ${input.to}`,
+      error
+    )
+    return { delivered: false }
+  }
+}

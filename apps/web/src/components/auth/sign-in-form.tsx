@@ -2,22 +2,28 @@
 
 import { authClient } from "@crikket/auth/client"
 import { env } from "@crikket/env/web"
-import { Icons } from "@crikket/ui/components/icons"
 import { Loader } from "@crikket/ui/components/loader"
 import { Button } from "@crikket/ui/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@crikket/ui/components/ui/field"
 import { Input } from "@crikket/ui/components/ui/input"
 import { useForm } from "@tanstack/react-form"
+import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 import { useRouter } from "nextjs-toploader/app"
 import { parseAsString, useQueryState } from "nuqs"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { AuthShell } from "@/components/auth/auth-shell"
+import { GoogleAuthButton } from "@/components/auth/google-auth-button"
 import { getAuthErrorMessage } from "@/lib/auth"
 import { loginFormSchema } from "@/lib/schema/auth"
+import { orpc } from "@/utils/orpc"
 
-export function SignInForm() {
+export function SignInForm({
+  googleAuthEnabled: googleAuthEnabledFromServer = false,
+}: {
+  googleAuthEnabled?: boolean
+}) {
   const router = useRouter()
   const [emailQuery] = useQueryState("email", parseAsString.withDefault(""))
   const [callbackUrlQuery] = useQueryState(
@@ -26,7 +32,11 @@ export function SignInForm() {
   )
   const { data: session, isPending } = authClient.useSession()
   const [isSocialSignInPending, setIsSocialSignInPending] = useState(false)
-  const isGoogleAuthEnabled = env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
+  const publicConfigQuery = useQuery(
+    orpc.auth.getPublicAuthConfig.queryOptions()
+  )
+  const googleAuthEnabled =
+    publicConfigQuery.data?.googleAuthEnabled ?? googleAuthEnabledFromServer
   const callbackURL = useMemo(() => {
     try {
       const appUrl = new URL(env.NEXT_PUBLIC_APP_URL)
@@ -88,29 +98,6 @@ export function SignInForm() {
     }
   }, [router, session])
 
-  const handleGoogleSignIn = async () => {
-    setIsSocialSignInPending(true)
-
-    const result = await authClient.signIn
-      .social({
-        provider: "google",
-        callbackURL,
-      })
-      .catch(() => null)
-
-    if (!result) {
-      toast.error("Unable to reach the auth server. Please try again.")
-      setIsSocialSignInPending(false)
-      return
-    }
-
-    if (result.error) {
-      toast.error(getAuthErrorMessage(result.error))
-    }
-
-    setIsSocialSignInPending(false)
-  }
-
   if (isPending) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -128,29 +115,12 @@ export function SignInForm() {
       description="Sign in to your account to continue"
       title="Welcome back"
     >
-      {isGoogleAuthEnabled ? (
-        <>
-          <Button
-            className="h-12 w-full font-semibold text-base shadow-sm transition-all hover:bg-muted/50 hover:shadow-md active:scale-[0.98]"
-            disabled={isSocialSignInPending || form.state.isSubmitting}
-            onClick={handleGoogleSignIn}
-            type="button"
-            variant="outline"
-          >
-            <Icons.google className="mr-3 h-5 w-5" />
-            Continue with Google
-          </Button>
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-muted border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 font-medium text-muted-foreground">
-                Or continue with email
-              </span>
-            </div>
-          </div>
-        </>
+      {googleAuthEnabled ? (
+        <GoogleAuthButton
+          callbackURL={callbackURL}
+          disabled={form.state.isSubmitting}
+          onPendingChange={setIsSocialSignInPending}
+        />
       ) : null}
 
       <form

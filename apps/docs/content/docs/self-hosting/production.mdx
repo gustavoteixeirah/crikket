@@ -42,15 +42,35 @@ Set these in `apps/web/.env`:
 ```bash
 NEXT_PUBLIC_APP_URL
 NEXT_PUBLIC_SERVER_URL
-NEXT_PUBLIC_GOOGLE_AUTH_ENABLED (optional)
 ```
 
-Optional Google OAuth:
+Optional Google OAuth (server, both required; empty = disabled):
 
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
-- `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true`
->
+
+The web shows **Continue with Google** from `GET /api/public-config` when both
+Google env vars are set. Restart the server after changing them; do not rebuild
+the web image. Google sign-ups use the same `ALLOWED_SIGNUP_*` lists as
+email/password. Link accounts by verified email.
+
+Redirect URI to register in Google Cloud Console (Web application):
+
+- Production: `{BETTER_AUTH_URL}/api/auth/callback/google`
+  (Kode GT: `https://crikket.kodegt.com/api/auth/callback/google`)
+- Local: `http://localhost:3000/api/auth/callback/google`
+
+Authorized JavaScript origin: the public app origin (`https://crikket.kodegt.com`
+or `http://localhost:3001`).
+
+Optional Resend (server, both required; empty = disabled):
+
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL` (address on a verified Resend domain)
+
+When unset, invites still work via copyable `/invite/{id}` links. Send errors
+never fail invite creation.
+
 > For self-hosting, set `ENABLE_PAYMENTS=false` and ignore `POLAR_*`.
 
 Notes:

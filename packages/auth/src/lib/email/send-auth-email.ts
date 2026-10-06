@@ -4,6 +4,7 @@ import type { ReactElement } from "react"
 import { Resend } from "resend"
 
 import {
+  executeAuthEmailSend,
   isAuthEmailProviderConfigured,
   resolveAuthEmailDelivery,
 } from "../auth-email-delivery"
@@ -23,7 +24,7 @@ const fromName = "Crikket"
 export function isAuthEmailConfigured(): boolean {
   return isAuthEmailProviderConfigured({
     hasApiKey: Boolean(env.RESEND_API_KEY),
-    hasFromEmail: Boolean(fromEmail),
+    hasFromEmail: Boolean(env.RESEND_FROM_EMAIL),
   })
 }
 
@@ -54,19 +55,23 @@ export const sendAuthEmail = async ({
     return { delivered: false }
   }
 
-  const html = await render(react)
-
-  const { error } = await resendClient.emails.send({
-    from: `${fromName} <${fromEmail}>`,
+  return await executeAuthEmailSend({
+    requireDelivery,
     to,
-    subject,
-    html,
-    text,
+    send: async () => {
+      const html = await render(react)
+
+      const { error } = await resendClient.emails.send({
+        from: `${fromName} <${fromEmail}>`,
+        to,
+        subject,
+        html,
+        text,
+      })
+
+      if (error) {
+        throw new Error(`Failed to send auth email: ${error.message}`)
+      }
+    },
   })
-
-  if (error) {
-    throw new Error(`Failed to send auth email: ${error.message}`)
-  }
-
-  return { delivered: true }
 }

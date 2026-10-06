@@ -281,10 +281,12 @@ placeholders):**
 Kode GT production can rely on those defaults. Still set them in Coolify if
 the service already has them.
 
-Optional web: `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`, `NEXT_PUBLIC_CRIKKET_KEY`,
+Optional web: `NEXT_PUBLIC_CRIKKET_KEY`,
 `NEXT_PUBLIC_DEMO_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`.
-`VITE_APP_URL` / `VITE_SERVER_URL` are passed as build args for completeness;
-the Coolify images do not build the browser extension.
+`NEXT_PUBLIC_GOOGLE_AUTH_ENABLED` is a leftover build arg (default false);
+the Google button is **not** gated by it. `VITE_APP_URL` / `VITE_SERVER_URL`
+are passed as build args for completeness; the Coolify images do not build
+the browser extension.
 
 **Server / migrate:**
 
@@ -300,8 +302,10 @@ the Coolify images do not build the browser extension.
 
 Optional server: `ALLOWED_SIGNUP_DOMAINS`, `ALLOWED_SIGNUP_EMAILS`, `BETTER_AUTH_COOKIE_DOMAIN`,
 `STORAGE_ADDRESSING_STYLE` (`auto` / `path` / `virtual`; use `path` for MinIO),
-`STORAGE_PUBLIC_URL`, `ENABLE_PAYMENTS` (self-host: `false`), `RESEND_*`,
-`GOOGLE_CLIENT_*`, `POLAR_*`, `CAPTURE_SUBMIT_TOKEN_SECRET`,
+`STORAGE_PUBLIC_URL`, `ENABLE_PAYMENTS` (self-host: `false`),
+`RESEND_API_KEY`, `RESEND_FROM_EMAIL` (both required to send mail; see below),
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (both required to enable Google; see below),
+`POLAR_*`, `CAPTURE_SUBMIT_TOKEN_SECRET`,
 `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `TURNSTILE_SITE_KEY`,
 `TURNSTILE_SECRET_KEY`, `WEBHOOK_ALLOW_PRIVATE_URLS`, `WEBHOOK_APP_BASE_URL`,
 `ORG_SECRETS_ENCRYPTION_KEY` (32-byte base64; generate with
@@ -530,8 +534,57 @@ invitations still work:
 4. Optional: **Add existing member** adds a user who already has an account,
    with owner/admin checks and no acceptance step.
 
-If Resend is configured, the invite email is still sent. No extra environment
-variables are required for the email-less path.
+If Resend is configured, the invite email is still sent. Email send errors are
+logged and never fail invite creation. No extra environment variables are
+required for the email-less path.
+
+## Optional Google OAuth and Resend
+
+Both features are **off by default**. Set the names in Coolify (empty values
+are fine). Toggling them needs only a stack restart, not a web image rebuild:
+the login/register pages read `GET /api/public-config` (also
+`/rpc/auth/getPublicAuthConfig`).
+
+### Google OAuth
+
+| Env (server / migrate) | Purpose |
+| --- | --- |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID. Empty = Google disabled. |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret. Empty = Google disabled. |
+
+Google is registered and the sign-in/sign-up button is shown **only when both
+are set**. Missing either hides the button, skips the provider, and does not
+crash or log. Google account creation uses the same `ALLOWED_SIGNUP_EMAILS` /
+`ALLOWED_SIGNUP_DOMAINS` hook as email/password. Existing users with the same
+**verified** email are linked rather than duplicated.
+
+Create an OAuth client in Google Cloud Console → APIs & Services → Credentials
+→ Create credentials → OAuth client ID → **Web application**:
+
+| Field | Kode GT production | Local |
+| --- | --- | --- |
+| Authorized JavaScript origins | `https://crikket.kodegt.com` | `http://localhost:3001` |
+| Authorized redirect URIs | `https://crikket.kodegt.com/api/auth/callback/google` | `http://localhost:3000/api/auth/callback/google` |
+
+`BETTER_AUTH_URL` must be that public origin (`https://crikket.kodegt.com` in
+Coolify). Caddy already routes `/api/*` to the Hono server.
+
+Do not commit the client secret. Put it only in Coolify.
+
+### Resend email
+
+| Env (server / migrate) | Purpose |
+| --- | --- |
+| `RESEND_API_KEY` | Resend API key. Empty = email disabled. |
+| `RESEND_FROM_EMAIL` | Verified from address, for example `noreply@kodegt.com`. Empty = email disabled. |
+
+Resend sends invites, email verification, and password-reset OTPs **only when
+both** are set. When unset, copyable invite links keep working and invite
+creation never fails. If Resend is on but a send fails, the error is logged
+and the invitation row is still created.
+
+In Resend: add and verify the sending domain, then use an address on that
+domain as `RESEND_FROM_EMAIL`. Do not commit the API key.
 
 ## AGPL-3.0 obligations (public deploy)
 
