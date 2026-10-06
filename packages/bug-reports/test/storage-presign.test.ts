@@ -200,6 +200,50 @@ describe("createUploadUrl", () => {
     expect(parsed.searchParams.has("x-amz-checksum-crc32")).toBeFalse()
     expect(parsed.searchParams.has("x-amz-sdk-checksum-algorithm")).toBeFalse()
   })
+
+  it("signs debugger uploads as application/gzip without content-encoding", async () => {
+    const storage = createS3StorageProvider({
+      bucket: "bug-report-bucket",
+      region: "us-east-1",
+      endpoint: "https://apiminio.example.com",
+      accessKeyId: "access",
+      secretAccessKey: "secret",
+    })
+
+    const upload = await storage.createUploadUrl({
+      filename:
+        "organizations/org_123/bug-reports/br_123/debugger/payload.json.gz",
+      contentType: "application/gzip",
+    })
+
+    expect(upload.headers).toEqual({
+      "content-type": "application/gzip",
+    })
+    expect(upload.headers["content-encoding"]).toBeUndefined()
+
+    const parsed = new URL(upload.url)
+    const signedHeaders = parsed.searchParams.get("X-Amz-SignedHeaders") ?? ""
+    expect(signedHeaders).not.toContain("content-encoding")
+  })
+
+  it("infers application/gzip for debugger payload keys", async () => {
+    const storage = createS3StorageProvider({
+      bucket: "bug-report-bucket",
+      region: "us-east-1",
+      endpoint: "https://apiminio.example.com",
+      accessKeyId: "access",
+      secretAccessKey: "secret",
+    })
+
+    const upload = await storage.createUploadUrl({
+      filename:
+        "organizations/org_123/bug-reports/br_123/debugger/payload.json.gz",
+    })
+
+    expect(upload.headers).toEqual({
+      "content-type": "application/gzip",
+    })
+  })
 })
 
 describe("resolveS3ForcePathStyle", () => {

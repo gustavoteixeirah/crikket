@@ -128,7 +128,7 @@ mock.module("@crikket/bug-reports/lib/upload-session", () => ({
     },
     debuggerUpload: {
       headers: {
-        "content-type": "application/json",
+        "content-type": "application/gzip",
       },
       key: "organizations/org_123/bug-reports/br_123/debugger/payload.json.gz",
       method: "PUT" as const,

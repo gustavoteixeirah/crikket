@@ -8,19 +8,19 @@ export interface DirectUploadTarget {
 
 export async function uploadArtifactToStorage(
   target: DirectUploadTarget,
-  blob: Blob,
-  options?: { contentEncoding?: string }
+  blob: Blob
 ): Promise<void> {
   let response: Response
 
   try {
+    // Do not set Content-Encoding on the stored object. MinIO and some S3 SDK
+    // GET paths auto-decompress gzip Content-Encoding, which then fails
+    // server-side gunzip (Z_DATA_ERROR). Compressed debugger bytes are stored
+    // as an opaque application/gzip object instead.
     response = await fetch(target.url, {
       method: target.method,
       headers: {
         ...target.headers,
-        ...(options?.contentEncoding
-          ? { "content-encoding": options.contentEncoding }
-          : undefined),
       },
       body: blob,
       mode: "cors",
@@ -64,6 +64,8 @@ export async function buildDebuggerArtifactForUpload(
 
   return {
     blob: compressedBlob,
+    // Finalize metadata: the stored bytes are gzip. Do not send this as an HTTP
+    // Content-Encoding header; see uploadArtifactToStorage.
     contentEncoding: "gzip",
   }
 }

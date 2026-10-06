@@ -55,10 +55,7 @@ export async function submitBugReportWithUploads(input: {
     uploads.push(
       uploadArtifactToStorage(
         uploadSession.debuggerUpload,
-        debuggerArtifact.blob,
-        {
-          contentEncoding: debuggerArtifact.contentEncoding,
-        }
+        debuggerArtifact.blob
       )
     )
   }

@@ -19,6 +19,7 @@ import { z } from "zod"
 import {
   buildCaptureArtifactKey,
   buildDebuggerArtifactKey,
+  DEBUGGER_ARTIFACT_CONTENT_TYPE,
 } from "./artifact-storage"
 import type { PersistBugReportDebuggerDataResult } from "./debugger"
 import {
@@ -213,7 +214,7 @@ export async function createBugReportUploadSession(input: {
     const debuggerUpload = debuggerKey
       ? await storage.createUploadUrl({
           filename: debuggerKey,
-          contentType: "application/json",
+          contentType: DEBUGGER_ARTIFACT_CONTENT_TYPE,
         })
       : null
 
