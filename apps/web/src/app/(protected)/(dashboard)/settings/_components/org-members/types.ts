@@ -16,4 +16,5 @@ export interface OrganizationInvitationRow {
   status: string
   createdAt: string
   expiresAt: string
+  inviteUrl: string
 }

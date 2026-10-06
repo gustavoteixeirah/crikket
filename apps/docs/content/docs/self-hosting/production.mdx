@@ -92,6 +92,8 @@ Rules:
 - Existing accounts can still sign in even if they are not on the lists.
 - A pending organization invitation for that exact email also allows signup, so invited members can create an account.
 
+Organization invitations do **not** require Resend. Admins always get a copyable `/invite/{id}` link. If `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set, the invite email is still sent; if they are unset, creating an invitation succeeds and the admin shares the link manually. Owners and admins can also add an existing user by email without an acceptance step.
+
 Example (lock public signup, allow two people):
 
 ```bash

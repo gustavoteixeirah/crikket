@@ -104,6 +104,7 @@ export const sendOrganizationInvitationEmail = async ({
     to: email,
     subject: `You're invited to join ${organizationName}`,
     text: `${inviterName} invited you to join ${organizationName} as ${role}. Open this invitation: ${invitationUrl}`,
+    requireDelivery: false,
     react: (
       <OrganizationInvitationTemplate
         invitationUrl={invitationUrl}

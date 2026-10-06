@@ -257,6 +257,28 @@ to run bundled Postgres.
 See [Self-hosting: Coolify](./apps/docs/content/docs/self-hosting/coolify.mdx)
 for a copy-paste Coolify checklist.
 
+## Organization invitations without email
+
+Production may run **without** `RESEND_API_KEY` / `RESEND_FROM_EMAIL`. Organization
+invitations still work:
+
+1. An owner or admin opens **Organization Settings** and creates an invite
+   (email + role). Better Auth stores a pending invitation even when Resend is
+   unset; the UI shows a copyable `/invite/{id}` link instead of failing.
+2. Share that link with the invitee. Pending invitations list the same link
+   again, plus **Resend** and **Revoke**.
+3. The invitee opens the link:
+   - Signed in as the invited email → accept (role from the invitation).
+   - No account → signup locked to that email (allowed by the pending-invite
+     bypass of `ALLOWED_SIGNUP_*`), then auto-accept.
+   - Signed in as a different email → clear mismatch message.
+   - Expired, revoked, or already accepted invitations cannot be used.
+4. Optional: **Add existing member** adds a user who already has an account,
+   with owner/admin checks and no acceptance step.
+
+If Resend is configured, the invite email is still sent. No extra environment
+variables are required for the email-less path.
+
 ## AGPL-3.0 obligations (public deploy)
 
 This fork is public, and the production service at

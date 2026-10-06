@@ -15,14 +15,34 @@ import { AuthShell } from "@/components/auth/auth-shell"
 import { AUTH_MIN_PASSWORD_LENGTH, getAuthErrorMessage } from "@/lib/auth"
 import { registerFormSchema } from "@/lib/schema/auth"
 
-export function SignUpForm() {
+interface SignUpFormProps {
+  callbackURL?: string
+  description?: string
+  lockedEmail?: string
+  onAccountCreated?: () => Promise<void>
+  redirectWhenAuthenticated?: boolean
+  signInHref?: string
+  submitLabel?: string
+  title?: string
+}
+
+export function SignUpForm({
+  callbackURL = env.NEXT_PUBLIC_APP_URL,
+  description = "Create your account to get started",
+  lockedEmail,
+  onAccountCreated,
+  redirectWhenAuthenticated = true,
+  signInHref = "/login",
+  submitLabel = "Sign up",
+  title = "Create account",
+}: SignUpFormProps) {
   const router = useRouter()
   const { data: session, isPending } = authClient.useSession()
 
   const form = useForm({
     defaultValues: {
       name: "",
-      email: "",
+      email: lockedEmail ?? "",
       password: "",
       confirmPassword: "",
     },
@@ -30,12 +50,13 @@ export function SignUpForm() {
       onChange: registerFormSchema,
     },
     onSubmit: async ({ value }) => {
+      const email = lockedEmail ?? value.email
       const result = await authClient.signUp
         .email({
           name: value.name,
-          email: value.email,
+          email,
           password: value.password,
-          callbackURL: env.NEXT_PUBLIC_APP_URL,
+          callbackURL,
         })
         .catch(() => null)
 
@@ -51,20 +72,24 @@ export function SignUpForm() {
 
       if (result.data?.token) {
         toast.success("Account created successfully.")
+        if (onAccountCreated) {
+          await onAccountCreated()
+          return
+        }
         router.push("/")
         return
       }
 
       toast.success("Account created. Sign in to continue.")
-      router.push(`/login?email=${encodeURIComponent(value.email)}`)
+      router.push(`/login?email=${encodeURIComponent(email)}`)
     },
   })
 
   useEffect(() => {
-    if (session) {
+    if (session && redirectWhenAuthenticated) {
       router.replace("/")
     }
-  }, [router, session])
+  }, [redirectWhenAuthenticated, router, session])
 
   if (isPending) {
     return (
@@ -79,10 +104,7 @@ export function SignUpForm() {
   }
 
   return (
-    <AuthShell
-      description="Create your account to get started"
-      title="Create account"
-    >
+    <AuthShell description={description} title={title}>
       <form
         className="grid gap-4"
         onSubmit={(event) => {
@@ -132,12 +154,23 @@ export function SignUpForm() {
                   id={field.name}
                   name={field.name}
                   onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
+                  onChange={(event) => {
+                    if (lockedEmail) {
+                      return
+                    }
+                    field.handleChange(event.target.value)
+                  }}
                   placeholder="you@example.com"
+                  readOnly={Boolean(lockedEmail)}
                   required
                   type="email"
-                  value={field.state.value}
+                  value={lockedEmail ?? field.state.value}
                 />
+                {lockedEmail ? (
+                  <p className="text-muted-foreground text-xs">
+                    This invitation is locked to {lockedEmail}.
+                  </p>
+                ) : null}
                 {isInvalid ? (
                   <FieldError errors={field.state.meta.errors} />
                 ) : null}
@@ -212,7 +245,7 @@ export function SignUpForm() {
           disabled={form.state.isSubmitting}
           type="submit"
         >
-          {form.state.isSubmitting ? "Creating account..." : "Sign up"}
+          {form.state.isSubmitting ? "Creating account..." : submitLabel}
         </Button>
       </form>
 
@@ -220,7 +253,7 @@ export function SignUpForm() {
         Already have an account?{" "}
         <Link
           className="font-medium text-foreground hover:underline"
-          href="/login"
+          href={signInHref as never}
         >
           Sign in
         </Link>
