@@ -227,7 +227,7 @@ the Coolify images do not build the browser extension.
 - `STORAGE_REGION` (required when `STORAGE_ENDPOINT` is unset) **or**
   `STORAGE_ENDPOINT` (MinIO / other S3-compatible)
 
-Optional server: `ALLOWED_SIGNUP_DOMAINS`, `BETTER_AUTH_COOKIE_DOMAIN`,
+Optional server: `ALLOWED_SIGNUP_DOMAINS`, `ALLOWED_SIGNUP_EMAILS`, `BETTER_AUTH_COOKIE_DOMAIN`,
 `STORAGE_ADDRESSING_STYLE` (`auto` / `path` / `virtual`; use `path` for MinIO),
 `STORAGE_PUBLIC_URL`, `ENABLE_PAYMENTS` (self-host: `false`), `RESEND_*`,
 `GOOGLE_CLIENT_*`, `POLAR_*`, `CAPTURE_SUBMIT_TOKEN_SECRET`,
