@@ -192,8 +192,9 @@ publish host ports in the compose file, and do not set `container_name`
 
 `web` uses `network_mode: service:server`, so it has **no own IP**. Do not
 attach a Coolify domain to `web` or `server`. `Caddyfile.coolify` sends
-`/api/*` and `/rpc/*` to `server:3000` and everything else to `server:3001`
-(the Next.js process listening in the server network namespace).
+`/api/*`, `/rpc/*`, `/mcp`, and `/mcp/*` to `server:3000` and everything else to `server:3001`
+(the Next.js process listening in the server network namespace). MCP is proxied
+without gzip so Streamable HTTP responses are not buffered.
 
 Do not publish Postgres (`5432`) on the Coolify proxy.
 

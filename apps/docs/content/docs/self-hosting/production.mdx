@@ -104,7 +104,7 @@ Manual production layout:
 
 - Public traffic -> Caddy (`80/443`)
 - Caddy -> `web:3001` for `/`
-- Caddy -> `server:3000` for `/api` and `/rpc`
+- Caddy -> `server:3000` for `/api`, `/rpc`, and `/mcp`
 
 Start commands:
 
@@ -133,7 +133,15 @@ Example `Caddyfile` for the supported single-domain deployment:
 }
 
 {$NEXT_PUBLIC_APP_URL} {
-	encode gzip zstd
+	@mcp path /mcp /mcp/*
+	handle @mcp {
+		reverse_proxy server:3000 {
+			flush_interval -1
+		}
+	}
+
+	@compressible not path /mcp /mcp/*
+	encode @compressible gzip zstd
 
 	@api path /api/* /rpc/*
 	handle @api {

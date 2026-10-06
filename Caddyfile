@@ -3,7 +3,17 @@
 }
 
 {$NEXT_PUBLIC_APP_URL} {
-	encode gzip zstd
+	# Streamable HTTP must not be gzip-buffered. flush_interval -1
+	# writes each chunk to the client immediately.
+	@mcp path /mcp /mcp/*
+	handle @mcp {
+		reverse_proxy server:3000 {
+			flush_interval -1
+		}
+	}
+
+	@compressible not path /mcp /mcp/*
+	encode @compressible gzip zstd
 
 	@api path /api/* /rpc/*
 	handle @api {

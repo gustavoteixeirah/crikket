@@ -223,7 +223,15 @@ The command should return your VPS public IP.
   }
 
   {$NEXT_PUBLIC_APP_URL} {
-    encode gzip zstd
+    @mcp path /mcp /mcp/*
+    handle @mcp {
+      reverse_proxy server:3000 {
+        flush_interval -1
+      }
+    }
+
+    @compressible not path /mcp /mcp/*
+    encode @compressible gzip zstd
 
     @api path /api/* /rpc/*
     handle @api {
@@ -236,7 +244,7 @@ The command should return your VPS public IP.
   }
   ```
 
-  In this stack, `web` shares the `server` network namespace, so one public hostname can serve the web app at `/` and the API at `/api` and `/rpc`.
+  In this stack, `web` shares the `server` network namespace, so one public hostname can serve the web app at `/`, the API at `/api` and `/rpc`, and MCP at `/mcp`.
 
   </Step>
 
