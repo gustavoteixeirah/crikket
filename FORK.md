@@ -21,12 +21,13 @@ Landed:
 
 - Remote MCP at `/mcp` so agents can list and fetch reports and artifacts
 - Organization API keys (hashed, read-only, org-scoped)
+- Outbound webhooks when a report is ready
+- One-call agent context package (`get_report_context` and
+  `GET /api/v1/reports/:id/context`)
 
 Upcoming work (separate tickets) includes:
 
-- Outbound webhooks when a report is ready
-- Machine-readable REST API reusing organization API keys (KOD-273)
-- Agent-ready report packages (one-call context for a coding agent)
+- Broader machine-readable REST API reusing organization API keys (KOD-273)
 - Fork-specific capture, storage, and access-control changes
 
 The fork exists so we can add agent integrations without publishing Kode GT
@@ -305,8 +306,8 @@ Production URL: `https://crikket.kodegt.com/mcp`
 Keys are hashed at rest (`sha256`). Revoke from the same settings page. A key
 can only list and fetch reports that belong to its organization.
 
-The same keys are a reusable auth layer for a later REST API (KOD-273). They
-are not MCP-specific.
+The same keys also authenticate a session-free REST endpoint for the agent
+context package (below). Broader REST coverage is still KOD-273.
 
 ### Cursor `mcp.json`
 
@@ -334,10 +335,32 @@ Local server: replace the URL with `http://localhost:3000/mcp` (or your
 | --- | --- |
 | `list_reports` | Paginated org reports. Filters: `status`, `createdAfter`, `createdBefore`, `search`. |
 | `get_report` | Detail: title, description, URL, browser/OS/viewport, timestamps, reporter, truncated steps/logs/network, ingestion metadata. |
+| `get_report_context` | One-call agent package: metadata, nullable transcript, merged timeline with errors highlighted and omitted counts, 15-minute signed media URLs, plus paste-ready `markdown`. |
 | `list_report_events` | Page further (`kind`: `actions` \| `logs` \| `network`). |
 | `get_network_request` | Headers and bodies for one network request. |
 | `get_report_artifacts` | Short-lived signed URLs for video and screenshot (15 minutes). |
 
-`get_report` returns the first page of events. If `pagination.hasNextPage` is
-true, call `list_report_events`. Artifact URLs are not included in list or
-detail payloads; use `get_report_artifacts`.
+Prefer `get_report_context` when prompting a fixing agent. `get_report` returns
+the first page of events. If `pagination.hasNextPage` is true, call
+`list_report_events`. Artifact URLs are not included in list or `get_report`
+payloads; use `get_report_artifacts` or `get_report_context`.
+
+`transcript` is always `null` until KOD-274 (session transcription) ships.
+
+### REST: agent context package
+
+Same org API key, no browser session.
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer crik_ak_YOUR_KEY_HERE" \
+  "https://crikket.kodegt.com/api/v1/reports/REPORT_ID/context"
+
+curl -sS \
+  -H "Authorization: Bearer crik_ak_YOUR_KEY_HERE" \
+  "https://crikket.kodegt.com/api/v1/reports/REPORT_ID/context?format=markdown"
+```
+
+`format` is `json` (default) or `markdown`. JSON includes a `markdown` field so
+you can paste the prompt without a second call. Local server: replace the host
+with `http://localhost:3000`.

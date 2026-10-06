@@ -7,6 +7,7 @@ import { appRouter } from "@crikket/api/routers/index"
 import { auth } from "@crikket/auth"
 import { drizzleOrganizationApiKeyStore } from "@crikket/auth/lib/organization-api-key-store"
 import { authenticateOrganizationApiKey } from "@crikket/auth/lib/organization-api-keys"
+import { drizzleAgentReportStore } from "@crikket/bug-reports/lib/agent-report-store"
 import { runBugReportIngestionPass } from "@crikket/bug-reports/lib/ingestion-jobs"
 import { runStalePendingBugReportCleanupPass } from "@crikket/bug-reports/lib/orphan-cleanup"
 import { runArtifactCleanupPass } from "@crikket/bug-reports/lib/storage"
@@ -20,6 +21,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { logger } from "hono/logger"
+import { handleReportContextRequest } from "./api-v1/report-context-route"
 import { handleCaptureFinalize } from "./capture/finalize-route"
 import { handleCaptureToken } from "./capture/token-route"
 import { handleCaptureUploadSession } from "./capture/upload-session-route"
@@ -112,7 +114,8 @@ app.use(
         (c.req.path === "/api/embed/capture-token" ||
           c.req.path === "/api/embed/bug-report-upload-session" ||
           c.req.path === "/api/embed/bug-report-finalize" ||
-          c.req.path === "/mcp") &&
+          c.req.path === "/mcp" ||
+          c.req.path.startsWith("/api/v1/")) &&
         origin.trim().length > 0
       ) {
         return origin
@@ -161,6 +164,16 @@ app.on(["POST", "GET", "DELETE"], "/mcp", (c) => {
       authenticateOrganizationApiKey(token, drizzleOrganizationApiKeyStore),
     executeTool: executeCrikketMcpTool,
     request: c.req.raw,
+  })
+})
+app.get("/api/v1/reports/:id/context", (c) => {
+  return handleReportContextRequest({
+    authenticate: (token) =>
+      authenticateOrganizationApiKey(token, drizzleOrganizationApiKeyStore),
+    format: c.req.query("format"),
+    reportId: c.req.param("id"),
+    request: c.req.raw,
+    store: drizzleAgentReportStore,
   })
 })
 

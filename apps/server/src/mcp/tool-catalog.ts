@@ -64,6 +64,23 @@ export const CRIKKET_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     description:
+      "One-call agent-ready package: title, description, reporter/page/URL/env, nullable transcript, merged chronological timeline (errors and failed requests highlighted, omitted counts), 15-minute signed media URLs, and paste-ready markdown. Prefer this when prompting a fixing agent.",
+    inputSchema: {
+      $schema: "http://json-schema.org/draft-07/schema#",
+      additionalProperties: false,
+      properties: {
+        reportId: {
+          description: "Bug report id from list_reports.",
+          type: "string",
+        },
+      },
+      required: ["reportId"],
+      type: "object",
+    },
+    name: "get_report_context",
+  },
+  {
+    description:
       "Page through a report's user actions, console logs, or network requests. Use after get_report when pagination.hasNextPage is true.",
     inputSchema: {
       $schema: "http://json-schema.org/draft-07/schema#",

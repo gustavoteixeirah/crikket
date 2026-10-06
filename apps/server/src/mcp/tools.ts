@@ -1,4 +1,5 @@
 import type { AuthenticatedOrganizationApiKey } from "@crikket/auth/lib/organization-api-keys"
+import { getReportContextForOrganization } from "@crikket/bug-reports/lib/agent-report-context"
 import { drizzleAgentReportStore } from "@crikket/bug-reports/lib/agent-report-store"
 import {
   type AgentReportEventKind,
@@ -105,6 +106,16 @@ export async function executeCrikketMcpTool(
 
   if (name === "get_report") {
     return await getReportForOrganization(
+      {
+        organizationId,
+        reportId: requireString(args, "reportId"),
+      },
+      store
+    )
+  }
+
+  if (name === "get_report_context") {
+    return await getReportContextForOrganization(
       {
         organizationId,
         reportId: requireString(args, "reportId"),
