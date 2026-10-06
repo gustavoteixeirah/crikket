@@ -9,6 +9,7 @@ import { toast } from "sonner"
 
 import { client, queryClient } from "@/utils/orpc"
 
+import { LinearHandoffActions } from "./linear-handoff-actions"
 import { NetworkRequestsPanel } from "./network-requests-panel"
 import { ReproductionStepsList } from "./reproduction-steps-list"
 import { TimelineList } from "./timeline-list"
@@ -113,6 +114,8 @@ export function BugReportSidebar({
                 <DetailRow label="Viewport" value={deviceInfo?.viewport} />
               </div>
             </div>
+            <Separator />
+            <LinearHandoffActions data={data} />
             <Separator />
             <div className="space-y-4">
               <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">

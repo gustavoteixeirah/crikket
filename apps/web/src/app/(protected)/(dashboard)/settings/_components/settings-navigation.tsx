@@ -7,6 +7,7 @@ import {
   Building2,
   CreditCard,
   KeyRound,
+  Layers,
   UserRound,
   Webhook,
 } from "lucide-react"
@@ -50,6 +51,12 @@ const SETTINGS_ITEMS = [
     title: "Transcription",
     description: "OpenAI speech-to-text BYOK",
     icon: AudioLines,
+  },
+  {
+    href: "/settings/linear",
+    title: "Linear",
+    description: "Issues and cloud agent handoff",
+    icon: Layers,
   },
   {
     href: "/settings/billing",

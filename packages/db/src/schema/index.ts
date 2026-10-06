@@ -1,6 +1,7 @@
 export * from "./auth"
 export * from "./billing"
 export * from "./bug-report"
+export * from "./linear"
 export * from "./organization-api-key"
 export * from "./transcription"
 export * from "./webhook"

@@ -18,6 +18,7 @@ import {
   calculateBugReportIngestionRetryDelayMs,
   resolveBugReportIngestionFailureStatus,
 } from "./ingestion-policy"
+import { enqueueLinearHandoffSafe } from "./linear/jobs"
 import { getStorageProvider } from "./storage"
 import { enqueueTranscriptionForReadyReportSafe } from "./transcription/jobs"
 import { enqueueReportReadyWebhookSafe } from "./webhooks/delivery"
@@ -206,6 +207,10 @@ export async function processBugReportIngestionJob(
       organizationId: report.organizationId,
     })
     await enqueueTranscriptionForReadyReportSafe({
+      bugReportId: report.id,
+      organizationId: report.organizationId,
+    })
+    await enqueueLinearHandoffSafe({
       bugReportId: report.id,
       organizationId: report.organizationId,
     })

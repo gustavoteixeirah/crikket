@@ -47,7 +47,7 @@ export const CRIKKET_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     description:
-      "Get one report in the API key's organization: title, description, metadata (URL, browser, OS, viewport, timestamps, reporter), truncated steps/logs/network, ingestion status, and a transcript summary (status, text, segment count) when speech-to-text has run. Use list_report_events to page further.",
+      "Get one report in the API key's organization: title, description, metadata (URL, browser, OS, viewport, timestamps, reporter), truncated steps/logs/network, ingestion status, a transcript summary when speech-to-text has run, plus Linear issue and Cursor cloud agent links when present. Use list_report_events to page further.",
     inputSchema: {
       $schema: "http://json-schema.org/draft-07/schema#",
       additionalProperties: false,
@@ -64,7 +64,7 @@ export const CRIKKET_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     description:
-      "One-call agent-ready package: title, description, reporter/page/URL/env, transcript text plus transcriptMeta (status, segments, model), merged chronological timeline (errors and failed requests highlighted, omitted counts), 15-minute signed media URLs, and paste-ready markdown. Prefer this when prompting a fixing agent.",
+      "One-call agent-ready package: title, description, reporter/page/URL/env, transcript text plus transcriptMeta (status, segments, model), Linear issue and Cursor cloud agent links, merged chronological timeline (errors and failed requests highlighted, omitted counts), 15-minute signed media URLs, and paste-ready markdown. Prefer this when prompting a fixing agent.",
     inputSchema: {
       $schema: "http://json-schema.org/draft-07/schema#",
       additionalProperties: false,

@@ -9,6 +9,7 @@ import { drizzleOrganizationApiKeyStore } from "@crikket/auth/lib/organization-a
 import { authenticateOrganizationApiKey } from "@crikket/auth/lib/organization-api-keys"
 import { drizzleAgentReportStore } from "@crikket/bug-reports/lib/agent-report-store"
 import { runBugReportIngestionPass } from "@crikket/bug-reports/lib/ingestion-jobs"
+import { runLinearHandoffPass } from "@crikket/bug-reports/lib/linear/jobs"
 import { runStalePendingBugReportCleanupPass } from "@crikket/bug-reports/lib/orphan-cleanup"
 import { runArtifactCleanupPass } from "@crikket/bug-reports/lib/storage"
 import { runTranscriptionPass } from "@crikket/bug-reports/lib/transcription/jobs"
@@ -39,6 +40,7 @@ const BUG_REPORT_ORPHAN_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
 const STORAGE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
 const WEBHOOK_DELIVERY_INTERVAL_MS = 15 * 1000
 const TRANSCRIPTION_INTERVAL_MS = 20 * 1000
+const LINEAR_HANDOFF_INTERVAL_MS = 15 * 1000
 type RateLimitHeaders = Record<string, string>
 
 function parseHeaderNumber(value: string | undefined): number | null {
@@ -224,6 +226,14 @@ const transcriptionInterval = setInterval(() => {
 }, TRANSCRIPTION_INTERVAL_MS)
 
 transcriptionInterval.unref?.()
+
+const linearHandoffInterval = setInterval(() => {
+  runLinearHandoffPass({ limit: 10 }).catch((error: unknown) => {
+    console.error("[linear-handoff] failed scheduled handoff pass", error)
+  })
+}, LINEAR_HANDOFF_INTERVAL_MS)
+
+linearHandoffInterval.unref?.()
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   plugins: [

@@ -79,9 +79,21 @@ export type AgentPaginatedEvents<TItem> = {
 export type AgentReportTranscript = ReportTranscriptView
 export type AgentReportTranscriptSummary = ReportTranscriptSummary
 
+export type AgentReportLinearLink = {
+  identifier: string | null
+  issueId: string | null
+  url: string | null
+}
+
+export type AgentReportCursorAgentLink = {
+  id: string | null
+  url: string | null
+}
+
 export type AgentReportDetail = {
   actions: AgentPaginatedEvents<AgentReportAction>
   createdAt: string
+  cursorAgent: AgentReportCursorAgentLink | null
   description: string | null
   deviceInfo: AgentReportDeviceInfo | null
   id: string
@@ -91,6 +103,7 @@ export type AgentReportDetail = {
     debuggerIngestionStatus: string
     submissionStatus: string
   }
+  linear: AgentReportLinearLink | null
   logs: AgentPaginatedEvents<AgentReportLog>
   metadata: Record<string, unknown> | null
   networkRequests: AgentPaginatedEvents<AgentReportNetworkRequest>
@@ -199,12 +212,17 @@ export type AgentReportRecord = {
   attachmentType: string | null
   captureKey: string | null
   createdAt: Date
+  cursorAgentId: string | null
+  cursorAgentUrl: string | null
   debuggerIngestedAt: Date | null
   debuggerIngestionError: string | null
   debuggerIngestionStatus: string
   description: string | null
   deviceInfo: unknown
   id: string
+  linearIssueId: string | null
+  linearIssueIdentifier: string | null
+  linearIssueUrl: string | null
   metadata: unknown
   organizationId: string
   organizationName: string
@@ -443,6 +461,12 @@ export async function getReportForOrganization(
       ),
     },
     createdAt: report.createdAt.toISOString(),
+    cursorAgent: report.cursorAgentUrl
+      ? {
+          id: report.cursorAgentId,
+          url: report.cursorAgentUrl,
+        }
+      : null,
     description: report.description,
     deviceInfo: parseDeviceInfo(report.deviceInfo),
     id: report.id,
@@ -452,6 +476,13 @@ export async function getReportForOrganization(
       debuggerIngestionStatus: report.debuggerIngestionStatus,
       submissionStatus: report.submissionStatus,
     },
+    linear: report.linearIssueUrl
+      ? {
+          identifier: report.linearIssueIdentifier,
+          issueId: report.linearIssueId,
+          url: report.linearIssueUrl,
+        }
+      : null,
     logs: {
       items: logs.map((log) => ({
         ...log,

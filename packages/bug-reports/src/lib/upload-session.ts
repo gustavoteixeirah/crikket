@@ -30,6 +30,7 @@ import {
   processBugReportIngestionJob,
   queueBugReportIngestionJob,
 } from "./ingestion-jobs"
+import { enqueueLinearHandoffSafe } from "./linear/jobs"
 import { getStorageProvider } from "./storage"
 import { enqueueTranscriptionForReadyReportSafe } from "./transcription/jobs"
 import {
@@ -404,6 +405,10 @@ export async function finalizeBugReportUpload(input: {
     organizationId: uploadSession.organizationId,
   })
   await enqueueTranscriptionForReadyReportSafe({
+    bugReportId: uploadSession.id,
+    organizationId: uploadSession.organizationId,
+  })
+  await enqueueLinearHandoffSafe({
     bugReportId: uploadSession.id,
     organizationId: uploadSession.organizationId,
   })

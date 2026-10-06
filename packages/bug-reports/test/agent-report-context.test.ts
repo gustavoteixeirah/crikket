@@ -31,12 +31,17 @@ function createReport(
     attachmentType: "video",
     captureKey: "org_a/video.webm",
     createdAt: new Date("2026-10-01T00:00:00.000Z"),
+    cursorAgentId: null,
+    cursorAgentUrl: null,
     debuggerIngestedAt: new Date("2026-10-01T00:01:00.000Z"),
     debuggerIngestionError: null,
     debuggerIngestionStatus: "completed",
     description: "Pay button does nothing",
     deviceInfo: { browser: "Chrome", os: "macOS", viewport: "1440x900" },
     id: "report_a",
+    linearIssueId: null,
+    linearIssueIdentifier: null,
+    linearIssueUrl: null,
     metadata: { pageTitle: "Checkout" },
     organizationId: "org_a",
     organizationName: "Org A",
@@ -377,6 +382,7 @@ describe("agent report context package", () => {
   it("formats paste-ready markdown from a context object", () => {
     const markdown = formatReportContextMarkdown({
       createdAt: "2026-10-01T00:00:00.000Z",
+      cursorAgent: null,
       description: "Broken checkout",
       environment: { browser: "Chrome", os: "macOS", viewport: "1440x900" },
       id: "report_a",
@@ -385,6 +391,11 @@ describe("agent report context package", () => {
         debuggerIngestionError: null,
         debuggerIngestionStatus: "completed",
         submissionStatus: "ready",
+      },
+      linear: {
+        identifier: "ACME-12",
+        issueId: "issue_1",
+        url: "https://linear.app/acme/issue/ACME-12",
       },
       media: {
         attachmentType: "screenshot",
@@ -420,6 +431,7 @@ describe("agent report context package", () => {
 
     expect(markdown.startsWith("# Checkout freeze")).toBeTrue()
     expect(markdown).toContain("Broken checkout")
+    expect(markdown).toContain("https://linear.app/acme/issue/ACME-12")
     expect(markdown).toContain("**ERROR** log [error] boom")
   })
 })
