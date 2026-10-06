@@ -96,12 +96,21 @@ TURNSTILE_SITE_KEY
 TURNSTILE_SECRET_KEY
 ```
 
-Optional Google OAuth:
+Optional Google OAuth (both required; empty = off). The web button follows the
+server flag, not a `NEXT_PUBLIC_*` rebuild:
 
 ```bash
 GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
-NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
+```
+
+Redirect URI: `http://localhost:3000/api/auth/callback/google`
+
+Optional Resend (both required; empty = off, invites still copyable):
+
+```bash
+RESEND_API_KEY
+RESEND_FROM_EMAIL
 ```
 
   </Step>

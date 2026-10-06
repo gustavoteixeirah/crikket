@@ -19,6 +19,7 @@ import {
   sendEmailVerificationLinkEmail,
   sendOrganizationInvitationEmail,
 } from "./lib/email/auth-emails"
+import { resolveGoogleSocialProviders } from "./lib/google-auth"
 import { hasPendingOrganizationInvitation } from "./lib/pending-signup-invitation"
 import {
   evaluateSignupAccess,
@@ -45,15 +46,10 @@ const crossSubDomainCookies = env.BETTER_AUTH_COOKIE_DOMAIN
     }
   : undefined
 
-const socialProviders =
-  env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-    ? {
-        google: {
-          clientId: env.GOOGLE_CLIENT_ID,
-          clientSecret: env.GOOGLE_CLIENT_SECRET,
-        },
-      }
-    : undefined
+const socialProviders = resolveGoogleSocialProviders({
+  clientId: env.GOOGLE_CLIENT_ID,
+  clientSecret: env.GOOGLE_CLIENT_SECRET,
+})
 
 type CheckoutProductSlug = "pro" | "pro-yearly" | "studio" | "studio-yearly"
 
@@ -123,12 +119,18 @@ const paymentsPlugins = env.ENABLE_PAYMENTS
 
 export const auth = betterAuth({
   appName: "crikket",
+  baseURL: env.BETTER_AUTH_URL,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,
   }),
   trustedOrigins,
   ...(socialProviders ? { socialProviders } : {}),
+  account: {
+    accountLinking: {
+      enabled: true,
+    },
+  },
   databaseHooks: {
     session: {
       create: {
@@ -251,13 +253,20 @@ export const auth = betterAuth({
     admin(),
     organization({
       sendInvitationEmail: async (data) => {
-        await sendOrganizationInvitationEmail({
-          email: data.email,
-          invitationId: data.id,
-          inviterName: data.inviter.user.name,
-          organizationName: data.organization.name,
-          role: data.role,
-        })
+        try {
+          await sendOrganizationInvitationEmail({
+            email: data.email,
+            invitationId: data.id,
+            inviterName: data.inviter.user.name,
+            organizationName: data.organization.name,
+            role: data.role,
+          })
+        } catch (error) {
+          console.error(
+            `[email] Organization invitation email failed for ${data.email}`,
+            error
+          )
+        }
       },
       organizationHooks: {
         beforeAcceptInvitation: async ({ invitation }) => {

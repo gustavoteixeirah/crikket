@@ -7,17 +7,21 @@ import { Button } from "@crikket/ui/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@crikket/ui/components/ui/field"
 import { Input } from "@crikket/ui/components/ui/input"
 import { useForm } from "@tanstack/react-form"
+import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 import { useRouter } from "nextjs-toploader/app"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { AuthShell } from "@/components/auth/auth-shell"
+import { GoogleAuthButton } from "@/components/auth/google-auth-button"
 import { AUTH_MIN_PASSWORD_LENGTH, getAuthErrorMessage } from "@/lib/auth"
 import { registerFormSchema } from "@/lib/schema/auth"
+import { orpc } from "@/utils/orpc"
 
 interface SignUpFormProps {
   callbackURL?: string
   description?: string
+  googleAuthEnabled?: boolean
   lockedEmail?: string
   onAccountCreated?: () => Promise<void>
   redirectWhenAuthenticated?: boolean
@@ -29,6 +33,7 @@ interface SignUpFormProps {
 export function SignUpForm({
   callbackURL = env.NEXT_PUBLIC_APP_URL,
   description = "Create your account to get started",
+  googleAuthEnabled: googleAuthEnabledFromServer = false,
   lockedEmail,
   onAccountCreated,
   redirectWhenAuthenticated = true,
@@ -38,6 +43,12 @@ export function SignUpForm({
 }: SignUpFormProps) {
   const router = useRouter()
   const { data: session, isPending } = authClient.useSession()
+  const [isSocialSignInPending, setIsSocialSignInPending] = useState(false)
+  const publicConfigQuery = useQuery(
+    orpc.auth.getPublicAuthConfig.queryOptions()
+  )
+  const googleAuthEnabled =
+    publicConfigQuery.data?.googleAuthEnabled ?? googleAuthEnabledFromServer
 
   const form = useForm({
     defaultValues: {
@@ -105,6 +116,13 @@ export function SignUpForm({
 
   return (
     <AuthShell description={description} title={title}>
+      {googleAuthEnabled && !lockedEmail ? (
+        <GoogleAuthButton
+          callbackURL={callbackURL}
+          disabled={form.state.isSubmitting}
+          onPendingChange={setIsSocialSignInPending}
+        />
+      ) : null}
       <form
         className="grid gap-4"
         onSubmit={(event) => {
@@ -242,7 +260,7 @@ export function SignUpForm({
 
         <Button
           className="h-11 w-full font-semibold"
-          disabled={form.state.isSubmitting}
+          disabled={form.state.isSubmitting || isSocialSignInPending}
           type="submit"
         >
           {form.state.isSubmitting ? "Creating account..." : submitLabel}

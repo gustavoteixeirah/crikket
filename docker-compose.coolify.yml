@@ -39,8 +39,10 @@ x-server-environment: &server-environment
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://crikket.kodegt.com}
   BETTER_AUTH_COOKIE_DOMAIN: ${BETTER_AUTH_COOKIE_DOMAIN:-}
+  # Optional Resend. Both must be set to send mail; invites still work if unset.
   RESEND_API_KEY: ${RESEND_API_KEY:-}
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+  # Optional Google OAuth. Both must be set; otherwise the provider is omitted.
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN:-}

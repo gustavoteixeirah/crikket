@@ -7,6 +7,7 @@ import { appRouter } from "@crikket/api/routers/index"
 import { auth } from "@crikket/auth"
 import { drizzleOrganizationApiKeyStore } from "@crikket/auth/lib/organization-api-key-store"
 import { authenticateOrganizationApiKey } from "@crikket/auth/lib/organization-api-keys"
+import { getPublicAuthConfig } from "@crikket/auth/lib/public-auth-config"
 import { drizzleAgentReportStore } from "@crikket/bug-reports/lib/agent-report-store"
 import { runBugReportIngestionPass } from "@crikket/bug-reports/lib/ingestion-jobs"
 import { runLinearHandoffPass } from "@crikket/bug-reports/lib/linear/jobs"
@@ -145,6 +146,7 @@ app.use(
 )
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw))
+app.get("/api/public-config", (c) => c.json(getPublicAuthConfig()))
 app.post("/api/embed/capture-token", (c) => {
   return handleCaptureToken({
     request: c.req.raw,

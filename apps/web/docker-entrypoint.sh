@@ -77,6 +77,7 @@ main() {
   require_env NEXT_PUBLIC_SERVER_URL
 
   : "${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:=false}"
+  # Empty NEXT_PUBLIC_* values must not crash (`set -eu`). Keep defaults.
   : "${NEXT_PUBLIC_CRIKKET_KEY:=}"
   : "${NEXT_PUBLIC_DEMO_URL:=}"
   : "${NEXT_PUBLIC_POSTHOG_KEY:=}"
