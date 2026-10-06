@@ -12,6 +12,7 @@ import { getProtectedAuthData } from "@/app/(protected)/_lib/get-protected-auth-
 import { DashboardPricingGate } from "@/app/(protected)/(dashboard)/_components/dashboard-pricing-gate"
 import { AppSidebar } from "@/components/app-sidebar"
 import { UnverifiedEmailBanner } from "@/components/auth/unverified-email-banner"
+import { ChooseDefaultOrganizationDialog } from "@/components/choose-default-organization-dialog"
 import { DashboardBreadcrumbs } from "@/components/dashboard-breadcrumbs"
 import { Shell } from "@/components/shell"
 import { client } from "@/utils/orpc"
@@ -41,25 +42,31 @@ export default async function DashboardLayout({
       headers: requestHeaders,
     },
   }
-  const [billingSnapshot, activeMembership] = await Promise.all([
-    client.billing.getCurrentOrganizationPlan({
-      organizationId: activeOrganization.id,
-    }),
-    authClient.organization.getActiveMemberRole({
-      query: {
+  const [billingSnapshot, activeMembership, organizationPreference] =
+    await Promise.all([
+      client.billing.getCurrentOrganizationPlan({
         organizationId: activeOrganization.id,
-      },
-      ...authFetchOptions,
-    }),
-  ])
+      }),
+      authClient.organization.getActiveMemberRole({
+        query: {
+          organizationId: activeOrganization.id,
+        },
+        ...authFetchOptions,
+      }),
+      client.auth.getMyOrganizations(),
+    ])
   const isDashboardLocked = billingSnapshot.plan === "free"
   const canManageBilling = activeMembership.data?.role === "owner"
+  const preferredOrganizationId = organizationPreference.preferredOrganizationId
+  const shouldChooseDefaultOrganization =
+    organizations.length > 1 && !preferredOrganizationId
 
   return (
     <SidebarProvider className="min-h-svh items-stretch">
       <AppSidebar
         activeOrganization={activeOrganization}
         organizations={organizations}
+        preferredOrganizationId={preferredOrganizationId}
         user={session.user}
       />
       <SidebarInset>
@@ -87,6 +94,10 @@ export default async function DashboardLayout({
           )}
         </Shell>
       </SidebarInset>
+      <ChooseDefaultOrganizationDialog
+        open={shouldChooseDefaultOrganization}
+        organizations={organizations}
+      />
     </SidebarProvider>
   )
 }

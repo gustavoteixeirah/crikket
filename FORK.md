@@ -24,6 +24,7 @@ Landed:
 - Outbound webhooks when a report is ready
 - One-call agent context package (`get_report_context` and
   `GET /api/v1/reports/:id/context`)
+- Per-user preferred/default organization (web switcher + extension submit target)
 
 Upcoming work (separate tickets) includes:
 
@@ -330,6 +331,34 @@ can only list and fetch reports that belong to its organization.
 
 The same keys also authenticate a session-free REST endpoint for the agent
 context package (below). Broader REST coverage is still KOD-273.
+
+## Active and default organization (KOD-278)
+
+Reports created from a signed-in session go to an organization the user
+**belongs to**. They never fall back to an organization the user merely owns
+if that org is not a membership.
+
+| Source | How it is chosen |
+| --- | --- |
+| Preferred / default | Stored in `user_preferred_organization` (one row per user). Set from the web org switcher ("Set default") or the first-login prompt. |
+| New session `activeOrganizationId` | Preferred org if still a membership, else the only membership, else the oldest membership. |
+| Existing session | Keep the current active org if it is still a membership; otherwise re-resolve as above. |
+| Extension submit | The reporter picks an org from their memberships before submit. That explicit id is sent with create/finalize. The server rejects it if they are not a member — it does **not** silently use the session or an owner org. |
+
+Web:
+
+- The sidebar org switcher shows the active org name/slug and whether it is the default.
+- Switching orgs changes the session only. It does **not** change the saved default.
+- "Set default" saves the preferred org and activates it.
+- If the user belongs to more than one org and has no default, a blocking dialog asks them to choose once.
+
+Extension:
+
+- Popup and submit form show which org the report will go to.
+- The last chosen org is remembered in `chrome.storage.local`.
+- Submit is disabled until an org is selected.
+
+No new environment variables.
 
 ### Cursor `mcp.json`
 

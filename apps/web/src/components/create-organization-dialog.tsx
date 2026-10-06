@@ -12,7 +12,6 @@ import {
 } from "@crikket/ui/components/ui/dialog"
 import { Field, FieldError, FieldLabel } from "@crikket/ui/components/ui/field"
 import { Input } from "@crikket/ui/components/ui/input"
-import { useLocalStorage } from "@crikket/ui/hooks/use-local-storage"
 import { useForm } from "@tanstack/react-form"
 import { useMutation } from "@tanstack/react-query"
 import { useRouter } from "nextjs-toploader/app"
@@ -34,14 +33,6 @@ export function CreateOrganizationDialog({
   onOpenChange,
 }: CreateOrganizationDialogProps) {
   const router = useRouter()
-  const { data: session } = authClient.useSession()
-  const preferredOrgStorageKey = session?.user.id
-    ? `crikket:preferred-org:${session.user.id}`
-    : "crikket:preferred-org"
-  const { setValue: setPreferredOrganizationId } = useLocalStorage<
-    string | null
-  >(preferredOrgStorageKey, null)
-
   const { mutateAsync: createOrg, isPending } = useMutation({
     mutationFn: async (values: { name: string; slug: string }) => {
       const { data, error } = await authClient.organization.create(values)
@@ -69,7 +60,16 @@ export function CreateOrganizationDialog({
       const newOrganizationId = organization?.id
 
       if (newOrganizationId) {
-        setPreferredOrganizationId(newOrganizationId)
+        const { error: setActiveError } =
+          await authClient.organization.setActive({
+            organizationId: newOrganizationId,
+          })
+
+        if (setActiveError) {
+          toast.error(
+            setActiveError.message ?? "Failed to activate organization"
+          )
+        }
       }
 
       await queryClient.invalidateQueries()

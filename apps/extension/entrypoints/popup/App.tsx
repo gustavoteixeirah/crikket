@@ -1,11 +1,13 @@
 import { reportNonFatalError } from "@crikket/shared/lib/errors"
 import { Button } from "@crikket/ui/components/ui/button"
 import { Keyboard } from "lucide-react"
+import { OrganizationSelect } from "@/components/organization-select"
 import { PopupCaptureActions } from "@/components/popup-capture-actions"
 import { useCommandShortcuts } from "@/hooks/use-command-shortcuts"
 import { useHotkeyTrigger } from "@/hooks/use-hotkey-trigger"
 import { usePopupCapture } from "@/hooks/use-popup-capture"
 import { usePopupRecordingStatus } from "@/hooks/use-popup-recording-status"
+import { useReportOrganization } from "@/hooks/use-report-organization"
 import {
   HOTKEY_START_SCREENSHOT_CAPTURE_STORAGE_KEY,
   HOTKEY_START_VIDEO_CAPTURE_STORAGE_KEY,
@@ -31,6 +33,7 @@ function App() {
     stopError,
     stopFromPopup,
   } = usePopupRecordingStatus()
+  const reportOrganization = useReportOrganization()
 
   const recordingCountdown =
     localRecordingCountdown ?? syncedRecordingCountdown ?? null
@@ -74,6 +77,18 @@ function App() {
             <p className="text-amber-900 text-sm">{audioWarning}</p>
           </div>
         ) : null}
+
+        <OrganizationSelect
+          error={reportOrganization.error}
+          isLoading={reportOrganization.isLoading}
+          onChange={(organizationId) => {
+            reportOrganization
+              .selectOrganization(organizationId)
+              .catch(() => undefined)
+          }}
+          organizations={reportOrganization.organizations}
+          selectedOrganizationId={reportOrganization.selectedOrganizationId}
+        />
 
         <PopupCaptureActions
           isBusy={isBusy}

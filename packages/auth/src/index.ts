@@ -130,6 +130,37 @@ export const auth = betterAuth({
   trustedOrigins,
   ...(socialProviders ? { socialProviders } : {}),
   databaseHooks: {
+    session: {
+      create: {
+        before: async (session) => {
+          const { applySessionActiveOrganization } = await import(
+            "./lib/organization-preference"
+          )
+          const resolved = await applySessionActiveOrganization({
+            currentActiveOrganizationId:
+              "activeOrganizationId" in session
+                ? ((session.activeOrganizationId as
+                    | string
+                    | null
+                    | undefined) ?? null)
+                : null,
+            persistSession: false,
+            userId: session.userId,
+          })
+
+          if (!resolved.activeOrganizationId) {
+            return { data: session }
+          }
+
+          return {
+            data: {
+              ...session,
+              activeOrganizationId: resolved.activeOrganizationId,
+            },
+          }
+        },
+      },
+    },
     user: {
       create: {
         before: async (user) => {

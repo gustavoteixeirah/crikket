@@ -1,6 +1,7 @@
 "use client"
 
 import { authClient } from "@crikket/auth/client"
+import { Badge } from "@crikket/ui/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@crikket/ui/components/ui/dropdown-menu"
 import {
@@ -17,50 +17,31 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@crikket/ui/components/ui/sidebar"
-import { useLocalStorage } from "@crikket/ui/hooks/use-local-storage"
-import { ChevronsUpDown, Plus } from "lucide-react"
+import { Check, ChevronsUpDown, Plus, Star } from "lucide-react"
 import { useRouter } from "nextjs-toploader/app"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { CreateOrganizationDialog } from "@/components/create-organization-dialog"
-import { queryClient } from "@/utils/orpc"
+import { client, queryClient } from "@/utils/orpc"
 
 type Organization = typeof authClient.$Infer.Organization
 
 interface TeamSwitcherProps {
   organizations: Organization[]
   activeOrganization?: Organization
-  userId: string
+  preferredOrganizationId?: string | null
 }
 
 export function TeamSwitcher({
   organizations,
   activeOrganization,
-  userId,
+  preferredOrganizationId,
 }: TeamSwitcherProps) {
   const { isMobile } = useSidebar()
-  const { data: session, isPending: isSessionPending } = authClient.useSession()
   const router = useRouter()
   const [showCreateDialog, setShowCreateDialog] = React.useState(false)
-  const [isAutoSwitching, setIsAutoSwitching] = React.useState(false)
-  const hasAttemptedAutoRestoreRef = React.useRef(false)
-
-  const preferredOrgStorageKey = React.useMemo(
-    () => `crikket:preferred-org:${userId}`,
-    [userId]
-  )
-  const {
-    setValue: setPreferredOrganizationId,
-    value: preferredOrganizationId,
-  } = useLocalStorage<string | null>(preferredOrgStorageKey, null)
-
-  const persistPreferredOrganization = React.useCallback(
-    (orgId: string) => {
-      setPreferredOrganizationId(orgId)
-    },
-    [setPreferredOrganizationId]
-  )
+  const [isUpdatingPreferred, setIsUpdatingPreferred] = React.useState(false)
 
   const invalidateDashboardData = React.useCallback(async () => {
     await queryClient.invalidateQueries()
@@ -76,11 +57,10 @@ export function TeamSwitcher({
         throw new Error(error.message ?? "Failed to switch organization")
       }
 
-      persistPreferredOrganization(orgId)
       await invalidateDashboardData()
       router.refresh()
     },
-    [invalidateDashboardData, persistPreferredOrganization, router]
+    [invalidateDashboardData, router]
   )
 
   const handleSwitchOrganization = React.useCallback(
@@ -100,57 +80,45 @@ export function TeamSwitcher({
     [activeOrganization?.id, setActiveOrganization]
   )
 
-  React.useEffect(() => {
-    if (activeOrganization?.id) {
-      persistPreferredOrganization(activeOrganization.id)
-      hasAttemptedAutoRestoreRef.current = false
-      return
-    }
+  const handleSetDefault = React.useCallback(
+    async (orgId: string) => {
+      if (orgId === preferredOrganizationId || isUpdatingPreferred) {
+        return
+      }
 
-    if (
-      organizations.length < 1 ||
-      isAutoSwitching ||
-      isSessionPending ||
-      !session ||
-      session.user.id !== userId ||
-      hasAttemptedAutoRestoreRef.current
-    ) {
-      return
-    }
+      setIsUpdatingPreferred(true)
 
-    const preferredOrgExists = organizations.some(
-      (org) => org.id === preferredOrganizationId
-    )
-    const organizationIdToActivate =
-      preferredOrgExists && preferredOrganizationId
-        ? preferredOrganizationId
-        : organizations[0]?.id
+      try {
+        if (orgId !== activeOrganization?.id) {
+          await setActiveOrganization(orgId)
+        }
 
-    if (!organizationIdToActivate) {
-      return
-    }
-
-    hasAttemptedAutoRestoreRef.current = true
-    setIsAutoSwitching(true)
-    setActiveOrganization(organizationIdToActivate)
-      .catch((error) => {
+        await client.auth.setPreferredOrganization({
+          organizationId: orgId,
+        })
+        await invalidateDashboardData()
+        toast.success("Default organization saved")
+        router.refresh()
+      } catch (error) {
         console.error(error)
-        toast.error("Failed to restore organization")
-      })
-      .finally(() => {
-        setIsAutoSwitching(false)
-      })
-  }, [
-    activeOrganization?.id,
-    isAutoSwitching,
-    isSessionPending,
-    organizations,
-    persistPreferredOrganization,
-    preferredOrganizationId,
-    session,
-    setActiveOrganization,
-    userId,
-  ])
+        toast.error("Failed to save default organization")
+      } finally {
+        setIsUpdatingPreferred(false)
+      }
+    },
+    [
+      activeOrganization?.id,
+      invalidateDashboardData,
+      isUpdatingPreferred,
+      preferredOrganizationId,
+      router,
+      setActiveOrganization,
+    ]
+  )
+
+  const isActiveDefault =
+    Boolean(activeOrganization?.id) &&
+    activeOrganization?.id === preferredOrganizationId
 
   return (
     <SidebarMenu>
@@ -177,10 +145,14 @@ export function TeamSwitcher({
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">
-                  {activeOrganization?.name ?? "Select Organization"}
+                  {activeOrganization?.name ?? "Select organization"}
                 </span>
                 <span className="truncate text-muted-foreground text-xs">
-                  {activeOrganization?.slug ?? "No organization"}
+                  {activeOrganization
+                    ? isActiveDefault
+                      ? `${activeOrganization.slug} · default`
+                      : `${activeOrganization.slug} · not default`
+                    : "No organization"}
                 </span>
               </div>
               <ChevronsUpDown className="ml-auto" />
@@ -196,29 +168,75 @@ export function TeamSwitcher({
               <DropdownMenuLabel className="text-muted-foreground text-xs">
                 Organizations
               </DropdownMenuLabel>
-              {organizations.map((org) => (
-                <DropdownMenuItem
-                  className="gap-2 p-2"
-                  key={org.id}
-                  onClick={() => handleSwitchOrganization(org.id)}
-                >
-                  <div className="flex size-6 items-center justify-center rounded-sm border">
-                    {org.logo ? (
-                      <img alt={org.name} className="size-4" src={org.logo} />
-                    ) : (
-                      <span className="font-medium text-xs uppercase">
-                        {org.name.slice(0, 2)}
+              {organizations.map((org) => {
+                const isActive = org.id === activeOrganization?.id
+                const isDefault = org.id === preferredOrganizationId
+
+                return (
+                  <DropdownMenuItem
+                    className="gap-2 p-2"
+                    key={org.id}
+                    onClick={() => {
+                      handleSwitchOrganization(org.id).catch(() => undefined)
+                    }}
+                  >
+                    <div className="flex size-6 items-center justify-center rounded-sm border">
+                      {org.logo ? (
+                        <img alt={org.name} className="size-4" src={org.logo} />
+                      ) : (
+                        <span className="font-medium text-xs uppercase">
+                          {org.name.slice(0, 2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid min-w-0 flex-1 text-left leading-tight">
+                      <span className="truncate">{org.name}</span>
+                      <span className="truncate text-muted-foreground text-xs">
+                        {org.slug}
                       </span>
+                    </div>
+                    {isDefault ? (
+                      <Badge variant="secondary">Default</Badge>
+                    ) : (
+                      <button
+                        className="rounded-md px-1.5 py-0.5 text-muted-foreground text-xs hover:bg-muted hover:text-foreground"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          handleSetDefault(org.id).catch(() => undefined)
+                        }}
+                        onPointerDown={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                        }}
+                        type="button"
+                      >
+                        Set default
+                      </button>
                     )}
-                  </div>
-                  {org.name}
-                  <DropdownMenuShortcut>
-                    ⌘{organizations.indexOf(org) + 1}
-                  </DropdownMenuShortcut>
-                </DropdownMenuItem>
-              ))}
+                    {isActive ? <Check className="size-4" /> : null}
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            {activeOrganization && !isActiveDefault ? (
+              <>
+                <DropdownMenuItem
+                  className="gap-2 p-2"
+                  disabled={isUpdatingPreferred}
+                  onClick={() => {
+                    handleSetDefault(activeOrganization.id).catch(
+                      () => undefined
+                    )
+                  }}
+                >
+                  <Star className="size-4" />
+                  Set {activeOrganization.name} as default
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
             <DropdownMenuItem
               className="gap-2 p-2"
               onClick={() => setShowCreateDialog(true)}
