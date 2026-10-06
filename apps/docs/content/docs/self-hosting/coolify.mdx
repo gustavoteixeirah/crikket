@@ -27,7 +27,14 @@ Dockerfile build pack).
 
 - `server` and `migrate` from `apps/server/Dockerfile`
 - `web` from `apps/web/Dockerfile`
-- `proxy` from `caddy:2.10-alpine` with `Caddyfile.coolify` (`:8080`)
+- `proxy` from `docker/caddy/Dockerfile` (`caddy:2.10-alpine` with
+  `Caddyfile.coolify` copied to `/etc/caddy/Caddyfile`, listening on `:8080`)
+
+The Caddyfile is baked into the proxy image because Coolify turns
+single-file bind mounts into directories (`is_directory=true`), which
+breaks Docker (`mount ... not a directory`). Do **not** add a Coolify
+file storage entry for `Caddyfile.coolify`. If one already exists from an
+older deploy, delete it.
 
 Public `NEXT_PUBLIC_*` (and `VITE_*`) values are passed as **build args** from
 the Coolify environment. The web image entrypoint still substitutes runtime

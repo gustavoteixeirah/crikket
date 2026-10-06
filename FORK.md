@@ -183,9 +183,11 @@ single Dockerfile.
 | Build pack | Docker Compose |
 
 That file **builds** `server` and `web` from `apps/server/Dockerfile` and
-`apps/web/Dockerfile` (same Dockerfiles as the upstream GHCR workflow). Upstream
-`docker-compose.yml` / `docker-compose.external-db.yml` still pull published
-images and must not be used for this fork's production.
+`apps/web/Dockerfile` (same Dockerfiles as the upstream GHCR workflow), and
+`proxy` from `docker/caddy/Dockerfile` (Caddy `2.10-alpine` with
+`Caddyfile.coolify` copied in). Upstream `docker-compose.yml` /
+`docker-compose.external-db.yml` still pull published images and must not be
+used for this fork's production.
 
 ### Domains and ports
 
@@ -201,6 +203,22 @@ attach a Coolify domain to `web` or `server`. `Caddyfile.coolify` sends
 without gzip so Streamable HTTP responses are not buffered.
 
 Do not publish Postgres (`5432`) on the Coolify proxy.
+
+### Proxy Caddyfile (no Coolify file storage)
+
+Coolify converts compose bind mounts into its own "file storage" entries. A
+single-file mount of `./Caddyfile.coolify` was created as a **directory**
+(`is_directory=true`), so Docker failed with `mount ... not a directory` and
+the proxy never started.
+
+The Caddyfile is therefore **baked into** `crikket-proxy:coolify` via
+`docker/caddy/Dockerfile` (`COPY Caddyfile.coolify /etc/caddy/Caddyfile`).
+Do **not** add a Coolify file storage entry for it. If an old directory
+storage named for `Caddyfile.coolify` still exists, delete it so Coolify
+does not keep mounting a folder over `/etc/caddy/Caddyfile`.
+
+The postgres host bind mount of the Coolify volume data dir is intentional
+(a directory) and is unrelated.
 
 ### Web unhealthy / 503 on cutover
 
