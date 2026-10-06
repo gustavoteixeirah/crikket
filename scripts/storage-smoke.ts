@@ -212,11 +212,16 @@ export async function runStorageSmoke(): Promise<void> {
       )
     }
     if (!stored.equals(gzipBody)) {
-      throw new Error("GET body does not match the gzip payload that was uploaded")
+      throw new Error(
+        "GET body does not match the gzip payload that was uploaded"
+      )
     }
 
     const decoded = gunzipSync(stored).toString("utf8")
-    if (JSON.parse(decoded).logs[0]?.message !== SMOKE_DEBUGGER_PAYLOAD.logs[0].message) {
+    if (
+      JSON.parse(decoded).logs[0]?.message !==
+      SMOKE_DEBUGGER_PAYLOAD.logs[0].message
+    ) {
       throw new Error("Gunzipped debugger JSON did not match the smoke payload")
     }
 
