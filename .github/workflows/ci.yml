@@ -50,11 +50,14 @@ jobs:
       - name: Lint
         run: bun run check
 
-      - name: Typecheck
-        run: bun run check-types
-
+      # Build before typecheck: @crikket-io/capture types resolve through
+      # @crikket/capture-core dist/ (package exports), which tsc --noEmit
+      # does not emit.
       - name: Build
         run: bun run build
 
+      - name: Typecheck
+        run: bun run check-types
+
       - name: Test
-        run: bun test
+        run: bash ./scripts/ci-test.sh

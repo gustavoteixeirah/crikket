@@ -151,6 +151,11 @@ branches until the sync lands.
 
 Kode GT deploys with Coolify, not these upstream publish jobs.
 
+`bun run test` (and the CI Test step) run `scripts/ci-test.sh`. Billing unit
+tests use Bun `mock.module` against the same specifiers; running that package's
+files in one process leaks mocks, so the script runs
+`packages/billing/test/*.test.ts` one file at a time.
+
 ## AGPL-3.0 obligations (public deploy)
 
 This fork is public, and the production service at
