@@ -1,0 +1,154 @@
+# Coolify "Docker Compose from Git" stack for the Kode GT fork.
+# Builds server + web from this repo instead of pulling upstream GHCR images.
+# Do not commit secret values. Set names in Coolify; interpolation reads them
+# from the project environment / `.env`.
+#
+# Upstream image-based files (`docker-compose.yml`,
+# `docker-compose.external-db.yml`) are unchanged.
+
+x-server-image: &server-image
+  image: crikket-server:coolify
+  build:
+    context: .
+    dockerfile: apps/server/Dockerfile
+  pull_policy: never
+
+x-server-environment: &server-environment
+  NODE_ENV: production
+  PORT: "3000"
+  DATABASE_URL: ${DATABASE_URL:-}
+  CORS_ORIGINS: ${CORS_ORIGINS:-}
+  ALLOWED_SIGNUP_DOMAINS: ${ALLOWED_SIGNUP_DOMAINS:-}
+  UPSTASH_REDIS_REST_URL: ${UPSTASH_REDIS_REST_URL:-}
+  UPSTASH_REDIS_REST_TOKEN: ${UPSTASH_REDIS_REST_TOKEN:-}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
+  BETTER_AUTH_COOKIE_DOMAIN: ${BETTER_AUTH_COOKIE_DOMAIN:-}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN:-}
+  POLAR_SUCCESS_URL: ${POLAR_SUCCESS_URL:-}
+  POLAR_WEBHOOK_SECRET: ${POLAR_WEBHOOK_SECRET:-}
+  POLAR_PRO_PRODUCT_ID: ${POLAR_PRO_PRODUCT_ID:-}
+  POLAR_PRO_YEARLY_PRODUCT_ID: ${POLAR_PRO_YEARLY_PRODUCT_ID:-}
+  POLAR_STUDIO_PRODUCT_ID: ${POLAR_STUDIO_PRODUCT_ID:-}
+  POLAR_STUDIO_YEARLY_PRODUCT_ID: ${POLAR_STUDIO_YEARLY_PRODUCT_ID:-}
+  ENABLE_PAYMENTS: ${ENABLE_PAYMENTS:-false}
+  STORAGE_BUCKET: ${STORAGE_BUCKET:-}
+  STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+  STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
+  STORAGE_REGION: ${STORAGE_REGION:-}
+  STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+  STORAGE_ADDRESSING_STYLE: ${STORAGE_ADDRESSING_STYLE:-}
+  STORAGE_PUBLIC_URL: ${STORAGE_PUBLIC_URL:-}
+  CAPTURE_SUBMIT_TOKEN_SECRET: ${CAPTURE_SUBMIT_TOKEN_SECRET:-}
+  TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+  TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: crikket-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_DB: ${POSTGRES_DB:-crikket}
+      POSTGRES_HOST_AUTH_METHOD: ${POSTGRES_HOST_AUTH_METHOD:-trust}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-crikket}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  server:
+    <<: *server-image
+    container_name: crikket-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *server-environment
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+      - "${WEB_PORT:-3001}:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://localhost:3000').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    <<: *server-image
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *server-environment
+    command: ["bun", "run", "--filter", "@crikket/db", "db:migrate"]
+
+  web:
+    image: crikket-web:coolify
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://__CRIKKET_SITE_URL__}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://__CRIKKET_APP_URL__}
+        NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-https://__CRIKKET_SERVER_URL__}
+        NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
+        NEXT_PUBLIC_CRIKKET_KEY: ${NEXT_PUBLIC_CRIKKET_KEY:-__CRIKKET_CAPTURE_KEY__}
+        NEXT_PUBLIC_DEMO_URL: ${NEXT_PUBLIC_DEMO_URL:-https://__CRIKKET_DEMO_URL__}
+        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-__CRIKKET_POSTHOG_KEY__}
+        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://__CRIKKET_POSTHOG_HOST__}
+        VITE_APP_URL: ${VITE_APP_URL:-}
+        VITE_SERVER_URL: ${VITE_SERVER_URL:-}
+    pull_policy: never
+    container_name: crikket-web
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    network_mode: "service:server"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+      NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-}
+      NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
+      NEXT_PUBLIC_CRIKKET_KEY: ${NEXT_PUBLIC_CRIKKET_KEY:-}
+      NEXT_PUBLIC_DEMO_URL: ${NEXT_PUBLIC_DEMO_URL:-}
+      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-}
+      VITE_APP_URL: ${VITE_APP_URL:-}
+      VITE_SERVER_URL: ${VITE_SERVER_URL:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://localhost:3001').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  postgres_data:

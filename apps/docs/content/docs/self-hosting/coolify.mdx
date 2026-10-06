@@ -1,0 +1,105 @@
+---
+title: Coolify
+description: Deploy the Kode GT fork from Git with Docker Compose builds (not upstream GHCR images).
+---
+
+This page is for the **Kode GT fork** (`gustavoteixeirah/crikket`, branch
+`main`). Upstream image-based compose files keep pulling
+`ghcr.io/redpangilinan/crikket-{server,web}:latest` and must not be used for
+[crikket.kodegt.com](https://crikket.kodegt.com).
+
+Operational summary also lives in [FORK.md](https://github.com/gustavoteixeirah/crikket/blob/main/FORK.md).
+
+## Resource type
+
+In Coolify, create **Docker Compose** from Git (not Nixpacks, not a single
+Dockerfile build pack).
+
+| Field | Value |
+| --- | --- |
+| Repository | `gustavoteixeirah/crikket` |
+| Branch | `main` |
+| Base directory | `/` |
+| Compose file | `docker-compose.coolify.yml` |
+| Build pack | Docker Compose |
+
+`docker-compose.coolify.yml` builds:
+
+- `server` and `migrate` from `apps/server/Dockerfile`
+- `web` from `apps/web/Dockerfile`
+
+Public `NEXT_PUBLIC_*` (and `VITE_*`) values are passed as **build args** from
+the Coolify environment. The web image entrypoint still substitutes runtime
+placeholders, so keep the same names set at runtime.
+
+Do not commit secret values. Coolify supplies them.
+
+## Domains and ports
+
+`web` uses `network_mode: service:server` and has no network identity. **Do not
+assign a Coolify domain to `web`.**
+
+Assign FQDNs on the **`server`** service:
+
+| Role | Container port |
+| --- | --- |
+| Next.js UI | `3001` |
+| Hono API | `3000` |
+
+For a single hostname (app + `/api` + `/rpc`), configure Coolify's proxy like
+the repo `Caddyfile`, or put an extra hostname on port `3000`. Do not expose
+Postgres (`5432`) on the proxy.
+
+## Required environment names
+
+### Web
+
+- `NEXT_PUBLIC_SITE_URL`
+- `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_SERVER_URL`
+
+Optional: `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`, `NEXT_PUBLIC_CRIKKET_KEY`,
+`NEXT_PUBLIC_DEMO_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`,
+`VITE_APP_URL`, `VITE_SERVER_URL`.
+
+### Server / migrate
+
+- `DATABASE_URL`
+- `BETTER_AUTH_SECRET`
+- `BETTER_AUTH_URL`
+- `CORS_ORIGINS`
+- `STORAGE_BUCKET`
+- `STORAGE_ACCESS_KEY_ID`
+- `STORAGE_SECRET_ACCESS_KEY`
+- `STORAGE_REGION` or `STORAGE_ENDPOINT`
+
+Optional: `ALLOWED_SIGNUP_DOMAINS`, `BETTER_AUTH_COOKIE_DOMAIN`,
+`STORAGE_ADDRESSING_STYLE`, `STORAGE_PUBLIC_URL`, `ENABLE_PAYMENTS`,
+`RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`, `POLAR_*`, `CAPTURE_SUBMIT_TOKEN_SECRET`,
+`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `TURNSTILE_SITE_KEY`,
+`TURNSTILE_SECRET_KEY`.
+
+For MinIO, set `STORAGE_ENDPOINT` to the S3 API URL and
+`STORAGE_ADDRESSING_STYLE=path`.
+
+### Bundled Postgres
+
+Only if you use the `postgres` service in this compose file (not Aurora):
+
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `POSTGRES_DB`
+- `POSTGRES_HOST_AUTH_METHOD`
+- `POSTGRES_PORT`
+
+Then set `DATABASE_URL` to `postgresql://USER:PASSWORD@postgres:5432/DB`.
+
+## Local build check
+
+```bash
+docker compose -f docker-compose.coolify.yml build
+```
+
+Runtime `up` still needs the environment names above. Upstream
+`docker-compose.yml` remains the image-pull self-host path.
