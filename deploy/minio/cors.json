@@ -1,0 +1,12 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://crikket.kodegt.com",
+      "chrome-extension://PASTE_CHROME_EXTENSION_ID"
+    ],
+    "AllowedMethods": ["GET", "HEAD", "PUT"],
+    "AllowedHeaders": ["Content-Type", "Content-Encoding", "x-amz-*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]

@@ -1,0 +1,14 @@
+<CORSConfiguration>
+  <CORSRule>
+    <AllowedOrigin>https://crikket.kodegt.com</AllowedOrigin>
+    <AllowedOrigin>chrome-extension://PASTE_CHROME_EXTENSION_ID</AllowedOrigin>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedHeader>Content-Type</AllowedHeader>
+    <AllowedHeader>Content-Encoding</AllowedHeader>
+    <AllowedHeader>x-amz-*</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <MaxAgeSeconds>3600</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>

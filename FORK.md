@@ -152,7 +152,7 @@ branches until the sync lands.
 
 | Workflow | Runs here? |
 | --- | --- |
-| `CI` | Yes — PRs and pushes to `main`. Includes **Package extension (Load unpacked)**, which builds the Chrome MV3 zip against `VITE_APP_URL` / `VITE_SERVER_URL` (https://crikket.kodegt.com in CI) and uploads it as `crikket-extension-chrome-mv3`. |
+| `CI` | Yes — PRs and pushes to `main`. Includes **Package extension (Load unpacked)**, which builds the Chrome MV3 zip against `VITE_APP_URL` / `VITE_SERVER_URL` (https://crikket.kodegt.com in CI) and uploads it as `crikket-extension-chrome-mv3`. Also includes **MinIO storage smoke**, which downloads pinned community MinIO/`mc` GitHub release binaries, applies `deploy/minio` policy/CORS, and runs `scripts/storage-smoke.ts`. |
 | `Upstream sync check` | Yes — weekly + manual. Informational only. |
 | `Publish Packages` | No — still npm-publishes `@crikket-io/capture`; gated to upstream repo |
 | `Publish Docker Images` | No — would push GHCR images from the fork; gated to upstream repo |
@@ -299,6 +299,196 @@ to run bundled Postgres.
 
 See [Self-hosting: Coolify](./apps/docs/content/docs/self-hosting/coolify.mdx)
 for a copy-paste Coolify checklist.
+
+`STORAGE_ACCESS_KEY_ID` / `STORAGE_SECRET_ACCESS_KEY` must be the **dedicated
+Crikket MinIO user**, not the MinIO root account. See [MinIO hardening](#minio-hardening).
+
+## MinIO hardening
+
+Production object storage is S3-compatible MinIO. Browsers and the Chrome MV3
+extension upload directly with presigned `PUT` URLs. This repo cannot touch
+the live MinIO cluster; DevOps applies the files under `deploy/minio/` later.
+
+Do **not** commit access keys, secret keys, or MinIO root credentials. The
+Chrome extension ID is visible in `chrome://extensions` once loaded.
+
+### What the app actually calls
+
+All S3 traffic goes through `packages/bug-reports/src/lib/storage.ts`
+(`createS3StorageProvider`). There is no multipart upload, no `ListObjects`,
+and no `CreateBucket` from the app.
+
+| IAM action | Code path | Why it is required |
+| --- | --- | --- |
+| `s3:PutObject` | `save()` and `createUploadUrl()` (`PutObjectCommand`, including presigned browser/extension PUTs) | Server-side writes and direct artifact uploads (`video/webm`, `image/png`, debugger `application/gzip`) |
+| `s3:GetObject` | `read()`, `getUrl()` (presigned GET when `STORAGE_PUBLIC_URL` is unset), and `exists()` | Artifact download / signed URLs. `HeadObject` is authorized as `s3:GetObject` (there is no separate `s3:HeadObject` action) |
+| `s3:DeleteObject` | `remove()` / artifact cleanup | Failed-ingest and retention cleanup |
+
+Omitted on purpose (least privilege):
+
+- `s3:ListBucket` — the app never lists the bucket
+- Multipart (`s3:CreateMultipartUpload`, `UploadPart`, …) — uploads are a single `PutObject`
+- `s3:*`, other buckets, and `arn:aws:s3:::*`
+
+Policy file: [`deploy/minio/crikket-policy.json`](./deploy/minio/crikket-policy.json).
+The bucket name is the literal `crikket` in the ARNs
+(`arn:aws:s3:::crikket` and `arn:aws:s3:::crikket/*`).
+`scripts/minio-harden.sh` substitutes `STORAGE_BUCKET` for `crikket` in those
+ARNs when you need a different name.
+
+### CORS (explicit origins)
+
+Presigned uploads send **`Content-Type` only**. The extension gzip-compresses
+debugger JSON but does **not** set `Content-Encoding` (KOD-275): MinIO would
+otherwise auto-decompress on GET and break server-side gunzip.
+
+Headers to allow:
+
+| Header | Sent today? | Why it is in the policy |
+| --- | --- | --- |
+| `Content-Type` | Yes (`application/gzip`, `video/webm`, `image/png`) | Signed and sent on every presigned PUT |
+| `x-amz-*` | Usually query-string SigV4 (`X-Amz-*`); some clients still send `x-amz-content-sha256` / `x-amz-date` / `x-amz-security-token` as headers | Preflight must not fail if they appear as request headers |
+| `Content-Encoding` | **No** | Optional allow-list only. Do not configure clients to send it |
+
+Methods: `PUT` (upload), `GET` / `HEAD` (read / exists). `OPTIONS` is handled
+by the CORS engine; it does not need to be in `AllowedMethods`.
+`ExposeHeaders`: `ETag`. `MaxAgeSeconds`: `3600`.
+
+Origins:
+
+- `https://crikket.kodegt.com` (web app)
+- `chrome-extension://<id>` (MV3 extension). Chrome does not accept a
+  `chrome-extension://*` wildcard here — use the real ID.
+
+**How to find the Chrome extension ID**
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Load unpacked `apps/extension/.output/chrome-mv3`, or unzip the CI artifact
+   `crikket-extension-chrome-mv3` and load that folder.
+4. Copy the **ID** shown under the extension name (32 lowercase characters).
+5. Or, on the extension service worker console: `chrome.runtime.id`.
+
+Unpacked builds without a pinned `key` in the manifest get an ID derived from
+the path. If you reload from a different checkout, the ID can change — update
+MinIO CORS when it does.
+
+Files:
+
+- AWS-style JSON: [`deploy/minio/cors.json`](./deploy/minio/cors.json)
+- MinIO AIStor XML for `mc cors set`: [`deploy/minio/cors.xml`](./deploy/minio/cors.xml)
+
+Replace `PASTE_CHROME_EXTENSION_ID` (or pass `CHROME_EXTENSION_ID` to the
+harden script).
+
+#### Community MinIO vs AIStor
+
+Community / AGPLv3 MinIO does **not** implement per-bucket CORS
+(`PutBucketCors` / `mc cors set` returns “functionality that is not
+implemented”). Use the **global** API CORS setting (origins only; methods and
+headers are not restricted at this layer):
+
+```bash
+mc admin config set "$MC_ALIAS" api cors_allow_origin="https://crikket.kodegt.com,chrome-extension://<id>"
+# Durable equivalent on the MinIO process (preferred in Coolify):
+# MINIO_API_CORS_ALLOW_ORIGIN=https://crikket.kodegt.com,chrome-extension://<id>
+```
+
+A restart may be required after `mc admin config set` (`mc admin service restart`
+or recycle the MinIO container). Prefer `MINIO_API_CORS_ALLOW_ORIGIN` so the
+value survives rebuilds without a one-shot `mc` command.
+
+MinIO AIStor (and some newer commercial builds) support bucket CORS, which
+**overrides** the global setting when present:
+
+```bash
+mc cors set "$MC_ALIAS/$STORAGE_BUCKET" deploy/minio/cors.xml
+```
+
+`scripts/minio-harden.sh` tries `mc cors set` first, then always sets
+`api cors_allow_origin`. It does **not** restart MinIO unless
+`MINIO_RESTART_AFTER_CORS=1`.
+
+### DevOps runbook
+
+This does not run against production from CI. Run it from a trusted admin
+shell that can reach MinIO.
+
+1. Install [`mc`](https://min.io/docs/minio/linux/reference/minio-mc.html) and
+   confirm you can reach the MinIO S3 API endpoint (not the Console port).
+2. Generate a dedicated access key / secret (do not reuse `MINIO_ROOT_*` for
+   the app). Keep the values in a secret store, not git.
+3. Find the Chrome MV3 extension ID (section above).
+4. Export admin + Crikket identity env (examples are names and placeholders):
+
+   ```bash
+   export MC_ALIAS=crikket
+   export MINIO_ENDPOINT=https://<minio-s3-api-host>
+   export MINIO_ROOT_USER=...          # MinIO admin, not the app user
+   export MINIO_ROOT_PASSWORD=...
+   export STORAGE_BUCKET=crikket
+   export STORAGE_DENY_BUCKET=crikket-policy-deny-probe
+   export CRIKKET_MINIO_ACCESS_KEY=... # becomes STORAGE_ACCESS_KEY_ID
+   export CRIKKET_MINIO_SECRET_KEY=... # becomes STORAGE_SECRET_ACCESS_KEY
+   export CORS_ALLOWED_ORIGINS=https://crikket.kodegt.com
+   export CHROME_EXTENSION_ID=<id>
+   # export MC_INSECURE=1              # only for lab TLS
+   # export MINIO_RESTART_AFTER_CORS=1 # only if you accept a MinIO restart
+   ```
+
+5. From the repo root:
+
+   ```bash
+   bash ./scripts/minio-harden.sh
+   ```
+
+   The script is idempotent: alias, buckets, policy, user, attach, anonymous
+   `none`, CORS. It prints the **env var names** to set in Coolify; it does
+   not print secret values.
+
+6. In Coolify (Crikket **server** service), set:
+
+   - `STORAGE_BUCKET`
+   - `STORAGE_ACCESS_KEY_ID` (the dedicated user access key)
+   - `STORAGE_SECRET_ACCESS_KEY`
+   - `STORAGE_ENDPOINT`
+   - `STORAGE_ADDRESSING_STYLE=path`
+   - `STORAGE_REGION` (any placeholder such as `us-east-1` is fine with a custom endpoint)
+   - `STORAGE_PUBLIC_URL` only if you serve objects from a public/CDN base URL
+
+7. On the **MinIO** process / Coolify MinIO service, set
+   `MINIO_API_CORS_ALLOW_ORIGIN` to the same comma-separated origin list
+   (`https://crikket.kodegt.com,chrome-extension://<id>`). Recycle MinIO if
+   CORS does not change after `mc admin config set`.
+
+8. Smoke from a machine that can reach MinIO, using the **dedicated** user
+   (never root):
+
+   ```bash
+   export STORAGE_BUCKET=crikket
+   export STORAGE_ACCESS_KEY_ID=...      # CRIKKET_MINIO_ACCESS_KEY
+   export STORAGE_SECRET_ACCESS_KEY=...  # CRIKKET_MINIO_SECRET_KEY
+   export STORAGE_ENDPOINT=https://<minio-s3-api-host>
+   export STORAGE_ADDRESSING_STYLE=path
+   export STORAGE_REGION=us-east-1
+   export STORAGE_DENY_BUCKET=crikket-policy-deny-probe
+   bun scripts/storage-smoke.ts
+   ```
+
+   The smoke uses `createS3StorageProvider`, presigned-PUTs a small gzip
+   debugger payload (same as the extension), HEADs and GETs it, checks the
+   bytes are still gzip, deletes the object, and asserts PutObject on
+   `STORAGE_DENY_BUCKET` is denied.
+
+9. Confirm in a real browser: submit a report from `https://crikket.kodegt.com`
+   and from the loaded extension. If the PUT fails before the server
+   responds, CORS origins/headers are wrong.
+
+CI runs the unit fixtures without MinIO. The `CI` workflow also has a
+**MinIO storage smoke** job (`scripts/minio-ci-smoke.sh`) that downloads
+pinned community MinIO/`mc` GitHub release binaries, runs the harden script,
+and runs `scripts/storage-smoke.ts` against that ephemeral instance. Docker
+Hub no longer publishes `minio/minio` images.
 
 ## Organization invitations without email
 
