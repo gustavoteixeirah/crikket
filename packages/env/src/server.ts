@@ -56,6 +56,11 @@ export const env = createEnv({
     CAPTURE_SUBMIT_TOKEN_SECRET: z.string().min(32).optional(),
     TURNSTILE_SITE_KEY: z.string().min(1).optional(),
     TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
+    WEBHOOK_ALLOW_PRIVATE_URLS: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    WEBHOOK_APP_BASE_URL: z.url().optional(),
     NODE_ENV: z
       .enum(["development", "production", "staging"])
       .default("development"),

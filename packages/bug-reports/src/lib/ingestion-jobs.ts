@@ -19,6 +19,7 @@ import {
   resolveBugReportIngestionFailureStatus,
 } from "./ingestion-policy"
 import { getStorageProvider } from "./storage"
+import { enqueueReportReadyWebhookSafe } from "./webhooks/delivery"
 
 const BUG_REPORT_INGESTION_JOB_TYPE = "debugger_ingestion"
 const BUG_REPORT_INGESTION_STALE_PROCESSING_MS = 5 * 60 * 1000
@@ -199,6 +200,10 @@ export async function processBugReportIngestionJob(
       .where(eq(bugReport.id, report.id))
 
     await markBugReportIngestionJobCompleted(claimedJob.jobId)
+    await enqueueReportReadyWebhookSafe({
+      bugReportId: report.id,
+      organizationId: report.organizationId,
+    })
 
     return {
       debugger: persistence,

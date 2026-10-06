@@ -38,6 +38,7 @@ import {
   optionalText,
   visibilityValues,
 } from "./utils"
+import { enqueueReportReadyWebhookSafe } from "./webhooks/delivery"
 
 const priorityValues = Object.values(PRIORITY_OPTIONS) as [
   Priority,
@@ -396,6 +397,11 @@ export async function finalizeBugReportUpload(input: {
       message: "Failed to process debugger data for this report.",
     })
   }
+
+  await enqueueReportReadyWebhookSafe({
+    bugReportId: uploadSession.id,
+    organizationId: uploadSession.organizationId,
+  })
 
   return {
     id: uploadSession.id,
