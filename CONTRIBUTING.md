@@ -4,6 +4,19 @@ Thanks for your interest in contributing to Crikket.
 
 This guide explains how to set up your local environment, make changes, and open high-quality pull requests.
 
+## Kode GT fork
+
+This repository is the [Kode GT fork](./FORK.md) of
+[redpangilinan/crikket](https://github.com/redpangilinan/crikket).
+
+- Branch from `main`. Feature branches are `teixeirah/kod-XXX` (Linear issue).
+- Open pull requests against **`gustavoteixeirah/crikket`** with base **`main`**.
+  GitHub often defaults fork PRs to upstream; switch the base repo before you
+  submit.
+- Do not open Kode GT product PRs on `redpangilinan/crikket`.
+- CI on this fork is the `CI` workflow (install, lint, typecheck, build, tests).
+- Upstream sync is documented in [FORK.md](./FORK.md). It is never automatic.
+
 ## Code of Conduct
 
 By participating, you agree to be respectful and constructive in discussions and reviews.

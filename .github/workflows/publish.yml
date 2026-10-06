@@ -19,6 +19,8 @@ concurrency:
 
 jobs:
   publish:
+    # Kode GT fork: never npm-publish from gustavoteixeirah/crikket.
+    if: github.repository == 'redpangilinan/crikket'
     runs-on: ubuntu-latest
 
     steps:

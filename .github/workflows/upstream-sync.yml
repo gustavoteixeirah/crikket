@@ -1,0 +1,28 @@
+name: Upstream sync check
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-sync-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Compare main to upstream/master
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check divergence from upstream
+        run: bash ./scripts/check-upstream.sh

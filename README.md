@@ -1,6 +1,18 @@
 <h1 align="center">Crikket</h1>
 
 <p align="center">
+  <strong>Kode GT fork</strong> of
+  <a href="https://github.com/redpangilinan/crikket">redpangilinan/crikket</a>
+  (AGPL-3.0) — QA / bug reports that feed AI coding agents.
+</p>
+
+<p align="center">
+  Deployed at <a href="https://crikket.kodegt.com">crikket.kodegt.com</a>
+  · Branch strategy and upstream sync:
+  <a href="./FORK.md">FORK.md</a>
+</p>
+
+<p align="center">
   <strong>Open-source bug reporting with the context engineers actually need.</strong>
 </p>
 
@@ -49,6 +61,19 @@ Every report is designed to reduce the usual debugging back-and-forth.
 | Collaboration | Team workspaces, invites, and report management |
 | Deployment | Quick and easy self-hosting |
 
+## Kode GT fork
+
+This is **not** the upstream Crikket repository. It is Kode GT's public fork,
+run at [crikket.kodegt.com](https://crikket.kodegt.com), and the starting point
+for turning Crikket into a QA tool whose reports are consumed by AI coding
+agents (MCP, webhooks, API keys, agent-ready packages — tracked in Linear).
+
+- Purpose, attribution, `main` / `teixeirah/kod-XXX` branches, upstream sync,
+  conflict rules, and AGPL notes: **[FORK.md](./FORK.md)**
+- PRs must target `main` on `gustavoteixeirah/crikket`, never
+  `redpangilinan/crikket`
+- Upstream project: [redpangilinan/crikket](https://github.com/redpangilinan/crikket)
+
 ## Quick Start
 
 ### Self-hosted
@@ -56,10 +81,13 @@ Every report is designed to reduce the usual debugging back-and-forth.
 The fastest path from a fresh clone is the interactive setup wizard:
 
 ```bash
-git clone https://github.com/redpangilinan/crikket
+git clone https://github.com/gustavoteixeirah/crikket
 cd crikket
 ./scripts/setup.sh
 ```
+
+To follow upstream instead of this fork, clone
+`https://github.com/redpangilinan/crikket`.
 
 The wizard handles env files, secret generation, domain prompts, Caddy setup,
 and Docker startup for the supported self-hosted flow.
@@ -139,4 +167,9 @@ Issues, pull requests, and feedback are welcome.
 
 ## License
 
-Licensed under the [AGPL-3.0](./LICENSE).
+Licensed under the [AGPL-3.0](./LICENSE), same as upstream
+[redpangilinan/crikket](https://github.com/redpangilinan/crikket).
+
+This public deploy at [crikket.kodegt.com](https://crikket.kodegt.com) is a
+network service of modified AGPL software; corresponding source is this
+repository. Details: [FORK.md](./FORK.md).

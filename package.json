@@ -90,6 +90,8 @@
     "generate:secret": "node -e \"console.log(require('node:crypto').randomBytes(32).toString('base64url'))\"",
     "check": "ultracite check",
     "fix": "ultracite fix",
+    "test": "bash ./scripts/ci-test.sh",
+    "check-upstream": "bash ./scripts/check-upstream.sh",
     "changeset:add": "changeset",
     "changeset:status": "changeset status --since=master",
     "changeset:version": "changeset version",

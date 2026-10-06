@@ -16,6 +16,8 @@ concurrency:
 
 jobs:
   version:
+    # Kode GT fork: never open Changeset release PRs from this repository.
+    if: github.repository == 'redpangilinan/crikket'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
