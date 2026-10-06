@@ -10,6 +10,8 @@ export const bugReportArtifactKindSchema = z.enum(bugReportArtifactKindValues)
 
 export type BugReportArtifactKind = z.infer<typeof bugReportArtifactKindSchema>
 
+export const DEBUGGER_ARTIFACT_CONTENT_TYPE = "application/gzip"
+
 export function buildCaptureArtifactKey(input: {
   organizationId: string
   bugReportId: string

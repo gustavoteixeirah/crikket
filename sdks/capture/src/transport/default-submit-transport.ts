@@ -57,10 +57,7 @@ export async function defaultSubmitTransport(
   if (uploadSession.debuggerUpload && debuggerArtifact) {
     await uploadArtifactToStorage(
       uploadSession.debuggerUpload,
-      debuggerArtifact.blob,
-      {
-        contentEncoding: debuggerArtifact.contentEncoding,
-      }
+      debuggerArtifact.blob
     )
   }
 

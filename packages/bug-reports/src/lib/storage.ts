@@ -17,11 +17,7 @@ import type { BugReportArtifactKind } from "./artifact-storage"
 export interface StorageProvider {
   save(filename: string, data: Buffer | Blob): Promise<void>
   getUrl(filename: string): Promise<string>
-  createUploadUrl(input: {
-    filename: string
-    contentEncoding?: string
-    contentType?: string
-  }): Promise<{
+  createUploadUrl(input: { filename: string; contentType?: string }): Promise<{
     headers: Record<string, string>
     method: "PUT"
     url: string
@@ -124,16 +120,14 @@ export function createS3StorageProvider(
         headers["content-type"] = resolvedContentType
       }
 
-      if (input.contentEncoding) {
-        headers["content-encoding"] = input.contentEncoding
-      }
-
+      // Do not sign or store Content-Encoding. Gzip debugger payloads uploaded
+      // with Content-Encoding: gzip are auto-decompressed by MinIO and some SDK
+      // GET paths, which then fails server-side gunzip (Z_DATA_ERROR).
       const url = await getSignedUrl(
         client,
         new PutObjectCommand({
           Bucket: options.bucket,
           Key: input.filename,
-          ContentEncoding: input.contentEncoding,
           ContentType: resolvedContentType,
         }),
         {
@@ -470,6 +464,7 @@ function encodePathSegment(filename: string): string {
 function getMimeTypeFromFilename(filename: string): string | null {
   if (filename.endsWith(".webm")) return "video/webm"
   if (filename.endsWith(".png")) return "image/png"
+  if (filename.endsWith(".json.gz")) return "application/gzip"
   return null
 }
 
