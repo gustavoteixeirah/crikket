@@ -4,7 +4,6 @@ import { authClient } from "@crikket/auth/client"
 import { Button } from "@crikket/ui/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@crikket/ui/components/ui/field"
 import { Input } from "@crikket/ui/components/ui/input"
-import { useLocalStorage } from "@crikket/ui/hooks/use-local-storage"
 import { useForm } from "@tanstack/react-form"
 import { useRouter } from "nextjs-toploader/app"
 import { toast } from "sonner"
@@ -14,17 +13,10 @@ import {
   slugifyOrganizationName,
 } from "@/lib/organization"
 import { organizationFormSchema } from "@/lib/schema/organization"
+import { client } from "@/utils/orpc"
 
 export default function CreateOrganizationOnboardingForm() {
   const router = useRouter()
-  const { data: session } = authClient.useSession()
-  const preferredOrgStorageKey = session?.user.id
-    ? `crikket:preferred-org:${session.user.id}`
-    : "crikket:preferred-org"
-  const { setValue: setPreferredOrganizationId } = useLocalStorage<
-    string | null
-  >(preferredOrgStorageKey, null)
-
   const form = useForm({
     defaultValues: {
       name: "",
@@ -49,8 +41,6 @@ export default function CreateOrganizationOnboardingForm() {
         return
       }
 
-      setPreferredOrganizationId(data.id)
-
       const { error: setActiveError } = await authClient.organization.setActive(
         {
           organizationId: data.id,
@@ -60,6 +50,15 @@ export default function CreateOrganizationOnboardingForm() {
       if (setActiveError) {
         toast.error(setActiveError.message ?? "Failed to activate organization")
         return
+      }
+
+      try {
+        await client.auth.setPreferredOrganization({
+          organizationId: data.id,
+        })
+      } catch (error) {
+        console.error(error)
+        toast.error("Organization created, but saving it as default failed")
       }
 
       toast.success("Organization created successfully")

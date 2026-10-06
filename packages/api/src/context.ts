@@ -1,7 +1,5 @@
 import { auth } from "@crikket/auth"
-import { db } from "@crikket/db"
-import { session as authSession, member } from "@crikket/db/schema/auth"
-import { asc, eq } from "drizzle-orm"
+import { applySessionActiveOrganization } from "@crikket/auth/lib/organization-preference"
 import type { Context as HonoContext } from "hono"
 
 export type CreateContextOptions = {
@@ -16,30 +14,15 @@ export async function createContext({ context }: CreateContextOptions) {
   const sessionId = session?.session.id
   const userId = session?.user.id
 
-  if (session && userId && !session.session.activeOrganizationId) {
-    const [fallbackMembership] = await db
-      .select({
-        organizationId: member.organizationId,
-      })
-      .from(member)
-      .where(eq(member.userId, userId))
-      .orderBy(asc(member.createdAt))
-      .limit(1)
+  if (session && userId) {
+    const resolved = await applySessionActiveOrganization({
+      currentActiveOrganizationId: session.session.activeOrganizationId,
+      sessionId,
+      userId,
+    })
 
-    const fallbackOrganizationId = fallbackMembership?.organizationId
-
-    if (fallbackOrganizationId) {
-      session.session.activeOrganizationId = fallbackOrganizationId
-
-      if (sessionId) {
-        await db
-          .update(authSession)
-          .set({
-            activeOrganizationId: fallbackOrganizationId,
-          })
-          .where(eq(authSession.id, sessionId))
-      }
-    }
+    session.session.activeOrganizationId =
+      resolved.activeOrganizationId ?? undefined
   }
 
   return {

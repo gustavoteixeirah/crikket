@@ -23,6 +23,7 @@ import { useCaptureContext } from "@/hooks/use-capture-context"
 import { useCommandShortcuts } from "@/hooks/use-command-shortcuts"
 import { type CaptureType, useRecorderInit } from "@/hooks/use-recorder-init"
 import { useRecorderRecordingSync } from "@/hooks/use-recorder-recording-sync"
+import { useReportOrganization } from "@/hooks/use-report-organization"
 import { useScreenCapture } from "@/hooks/use-screen-capture"
 import { useTimer } from "@/hooks/use-timer"
 import {
@@ -72,6 +73,7 @@ function App() {
   )
 
   const captureContext = useCaptureContext()
+  const reportOrganization = useReportOrganization()
 
   const {
     startRecording: startCapture,
@@ -286,6 +288,7 @@ function App() {
     title: string
     description: string
     priority: Priority
+    organizationId: string
   }) => {
     const blob = captureType === "video" ? recordedBlob : screenshotBlob
     if (!blob || blob.size === 0) {
@@ -321,6 +324,7 @@ function App() {
         priority: values.priority,
         description: normalizeOptionalText(values.description, 3000),
         url: captureContextSubmissionData.normalizedUrl,
+        organizationId: values.organizationId,
         metadata: {
           duration: formatDuration(durationMs),
           durationMs,
@@ -419,11 +423,20 @@ function App() {
               captureType={captureType}
               debuggerSummary={debuggerSummary}
               initialTitle={suggestedTitle}
+              isLoadingOrganizations={reportOrganization.isLoading}
               isSubmitting={state === "submitting"}
               onCancel={handleReset}
+              onOrganizationChange={(organizationId) => {
+                reportOrganization
+                  .selectOrganization(organizationId)
+                  .catch(() => undefined)
+              }}
               onSubmit={handleSubmit}
+              organizations={reportOrganization.organizations}
+              organizationsError={reportOrganization.error}
               preSubmitWarnings={preSubmitWarnings}
               previewUrl={previewUrl}
+              selectedOrganizationId={reportOrganization.selectedOrganizationId}
               submitError={submitError}
               videoDurationMs={
                 captureType === "video"

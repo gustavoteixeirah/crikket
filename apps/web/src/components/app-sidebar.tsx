@@ -36,6 +36,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: typeof authClient.$Infer.Session.user
   organizations: Organization[]
   activeOrganization?: Organization
+  preferredOrganizationId?: string | null
 }
 
 const navPrimary = [
@@ -82,6 +83,7 @@ export function AppSidebar({
   user,
   organizations,
   activeOrganization,
+  preferredOrganizationId,
   ...props
 }: AppSidebarProps) {
   const pathname = usePathname()
@@ -93,7 +95,7 @@ export function AppSidebar({
         <TeamSwitcher
           activeOrganization={activeOrganization}
           organizations={organizations}
-          userId={user.id}
+          preferredOrganizationId={preferredOrganizationId}
         />
       </SidebarHeader>
       <SidebarContent className="gap-0">

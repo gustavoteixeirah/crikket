@@ -17,6 +17,7 @@ import { useForm } from "@tanstack/react-form"
 import { AlertTriangle } from "lucide-react"
 import { type SyntheticEvent, useCallback, useEffect, useRef } from "react"
 import * as z from "zod"
+import { OrganizationSelect } from "@/components/organization-select"
 
 const priorityValues = Object.values(PRIORITY_OPTIONS) as [
   Priority,
@@ -46,10 +47,20 @@ interface FormStepProps {
   submitError: string | null
   preSubmitWarnings: string[]
   debuggerSummary: DebuggerSummary
+  organizations: {
+    id: string
+    name: string
+    slug: string
+  }[]
+  selectedOrganizationId: string | null
+  organizationsError: string | null
+  isLoadingOrganizations: boolean
+  onOrganizationChange: (organizationId: string) => void
   onSubmit: (values: {
     title: string
     description: string
     priority: Priority
+    organizationId: string
   }) => void
   onCancel: () => void
 }
@@ -69,6 +80,11 @@ export function FormStep({
   submitError,
   preSubmitWarnings,
   debuggerSummary,
+  organizations,
+  selectedOrganizationId,
+  organizationsError,
+  isLoadingOrganizations,
+  onOrganizationChange,
   onSubmit,
   onCancel,
 }: FormStepProps) {
@@ -84,15 +100,21 @@ export function FormStep({
       onSubmit: formSchema,
     },
     onSubmit: async ({ value }) => {
+      if (!selectedOrganizationId) {
+        return
+      }
+
       await onSubmit({
         title: value.title,
         description: value.description,
         priority: value.priority,
+        organizationId: selectedOrganizationId,
       })
     },
   })
 
   const isBusy = isSubmitting || form.state.isSubmitting
+  const canSubmit = Boolean(selectedOrganizationId) && !isLoadingOrganizations
   const totalCapturedEvents =
     debuggerSummary.actions +
     debuggerSummary.logs +
@@ -197,6 +219,15 @@ export function FormStep({
               <span>Requests: {debuggerSummary.networkRequests}</span>
             </div>
           </section>
+
+          <OrganizationSelect
+            disabled={isBusy}
+            error={organizationsError}
+            isLoading={isLoadingOrganizations}
+            onChange={onOrganizationChange}
+            organizations={organizations}
+            selectedOrganizationId={selectedOrganizationId}
+          />
 
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_190px]">
             <form.Field name="title">
@@ -328,7 +359,11 @@ export function FormStep({
           >
             Cancel
           </Button>
-          <Button className="flex-1" disabled={isBusy} type="submit">
+          <Button
+            className="flex-1"
+            disabled={isBusy || !canSubmit}
+            type="submit"
+          >
             {isBusy ? "Submitting..." : "Submit Bug Report"}
           </Button>
         </div>

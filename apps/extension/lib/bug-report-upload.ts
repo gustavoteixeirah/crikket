@@ -27,6 +27,7 @@ export async function submitBugReportWithUploads(input: {
     pageTitle?: string
   }
   priority: Priority
+  organizationId: string
   title?: string
   url?: string
 }): Promise<Awaited<ReturnType<typeof client.bugReport.finalizeUpload>>> {
@@ -38,6 +39,7 @@ export async function submitBugReportWithUploads(input: {
     hasDebuggerPayload: Boolean(input.debuggerPayload),
     debuggerSummary: input.debuggerSummary,
     metadata: input.metadata,
+    organizationId: input.organizationId,
     priority: input.priority,
     title: input.title,
     url: input.url,
@@ -68,5 +70,6 @@ export async function submitBugReportWithUploads(input: {
     captureSizeBytes: input.attachment.size,
     debuggerContentEncoding: debuggerArtifact?.contentEncoding,
     debuggerSizeBytes: debuggerArtifact?.blob.size,
+    organizationId: input.organizationId,
   })
 }

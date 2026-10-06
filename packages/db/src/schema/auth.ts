@@ -149,11 +149,37 @@ export const invitation = pgTable(
   ]
 )
 
-export const userRelations = relations(user, ({ many }) => ({
+export const userPreferredOrganization = pgTable(
+  "user_preferred_organization",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("user_preferred_organization_organizationId_idx").on(
+      table.organizationId
+    ),
+  ]
+)
+
+export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   accounts: many(account),
   members: many(member),
   invitations: many(invitation),
+  preferredOrganization: one(userPreferredOrganization, {
+    fields: [user.id],
+    references: [userPreferredOrganization.userId],
+  }),
 }))
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -196,3 +222,17 @@ export const invitationRelations = relations(invitation, ({ one }) => ({
     references: [user.id],
   }),
 }))
+
+export const userPreferredOrganizationRelations = relations(
+  userPreferredOrganization,
+  ({ one }) => ({
+    organization: one(organization, {
+      fields: [userPreferredOrganization.organizationId],
+      references: [organization.id],
+    }),
+    user: one(user, {
+      fields: [userPreferredOrganization.userId],
+      references: [user.id],
+    }),
+  })
+)
