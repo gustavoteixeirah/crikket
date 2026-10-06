@@ -94,7 +94,7 @@ describe("default submit transport regression", () => {
                 },
                 debuggerUpload: {
                   headers: {
-                    "content-type": "application/json",
+                    "content-type": "application/gzip",
                   },
                   method: "PUT",
                   url: "https://storage.example.com/debugger-upload",
@@ -184,10 +184,13 @@ describe("default submit transport regression", () => {
     )
     expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({
       headers: {
-        "content-type": "application/json",
+        "content-type": "application/gzip",
       },
       method: "PUT",
     })
+    expect(
+      new Headers(fetchMock.mock.calls[3]?.[1]?.headers).has("content-encoding")
+    ).toBeFalse()
     expect(fetchMock.mock.calls[4]?.[0]).toBe(
       "https://api.crikket.io/api/embed/bug-report-finalize"
     )

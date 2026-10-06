@@ -3,6 +3,7 @@ import {
   buildCaptureArtifactKey,
   buildDebuggerArtifactKey,
   buildThumbnailArtifactKey,
+  DEBUGGER_ARTIFACT_CONTENT_TYPE,
 } from "../src/lib/artifact-storage"
 
 describe("artifact storage key builders", () => {
@@ -40,5 +41,9 @@ describe("artifact storage key builders", () => {
         bugReportId: "br_123",
       })
     ).toBe("organizations/org_123/bug-reports/br_123/debugger/payload.json.gz")
+  })
+
+  it("stores debugger payloads as application/gzip without Content-Encoding", () => {
+    expect(DEBUGGER_ARTIFACT_CONTENT_TYPE).toBe("application/gzip")
   })
 })
