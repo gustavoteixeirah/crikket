@@ -1,7 +1,9 @@
 # Coolify "Docker Compose from Git" stack for the Kode GT fork.
-# Builds server + web from this repo instead of pulling upstream GHCR images.
+# Pulls prebuilt images from ghcr.io/gustavoteixeirah (see .github/workflows/images.yml).
+# Do not build on the VPS — the web image OOM-kills there (exit 137).
 # Do not commit secret values. Set names in Coolify; interpolation reads them
 # from the project environment / `.env`.
+# Optional: set CRIKKET_IMAGE_TAG=sha-<short sha> to pin / roll back.
 #
 # Production (crikket.kodegt.com): route the public hostname to the `proxy`
 # service on container port 8080. No host port bindings — Coolify's proxy
@@ -21,11 +23,8 @@
 # `docker-compose.external-db.yml`) are unchanged.
 
 x-server-image: &server-image
-  image: crikket-server:coolify
-  build:
-    context: .
-    dockerfile: apps/server/Dockerfile
-  pull_policy: never
+  image: ghcr.io/gustavoteixeirah/crikket-server:${CRIKKET_IMAGE_TAG:-main}
+  pull_policy: always
 
 x-server-environment: &server-environment
   NODE_ENV: production
@@ -124,22 +123,8 @@ services:
     command: ["bun", "run", "--filter", "@crikket/db", "db:migrate"]
 
   web:
-    image: crikket-web:coolify
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://__CRIKKET_SITE_URL__}
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://__CRIKKET_APP_URL__}
-        NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-https://__CRIKKET_SERVER_URL__}
-        NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
-        NEXT_PUBLIC_CRIKKET_KEY: ${NEXT_PUBLIC_CRIKKET_KEY:-__CRIKKET_CAPTURE_KEY__}
-        NEXT_PUBLIC_DEMO_URL: ${NEXT_PUBLIC_DEMO_URL:-https://__CRIKKET_DEMO_URL__}
-        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-__CRIKKET_POSTHOG_KEY__}
-        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://__CRIKKET_POSTHOG_HOST__}
-        VITE_APP_URL: ${VITE_APP_URL:-}
-        VITE_SERVER_URL: ${VITE_SERVER_URL:-}
-    pull_policy: never
+    image: ghcr.io/gustavoteixeirah/crikket-web:${CRIKKET_IMAGE_TAG:-main}
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       server:
@@ -175,11 +160,8 @@ services:
       start_period: 180s
 
   proxy:
-    image: crikket-proxy:coolify
-    build:
-      context: .
-      dockerfile: docker/caddy/Dockerfile
-    pull_policy: never
+    image: ghcr.io/gustavoteixeirah/crikket-proxy:${CRIKKET_IMAGE_TAG:-main}
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       server:

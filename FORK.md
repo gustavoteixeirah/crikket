@@ -77,7 +77,8 @@ Upstream's default branch is `master`, not `main`. Kode GT standardizes on
 3. Wait for the `CI` GitHub Actions workflow (install, lint, typecheck, build,
    tests). Squash-merge into `main` when green.
 
-4. Coolify deploys from `main` to `crikket.kodegt.com`.
+4. Wait for the `Images` workflow on `main` to push GHCR tags, then redeploy
+   in Coolify (see [Coolify deploy](#coolify-deploy-pull-ghcr-images)).
 
 Commit messages follow the upstream conventional-commit style in
 [CONTRIBUTING.md](./CONTRIBUTING.md). Reference Linear issues (`KOD-XXX` /
@@ -132,11 +133,13 @@ When `git merge upstream/master` conflicts:
    - `scripts/check-upstream.sh`
    - `.github/workflows/ci.yml`
    - `.github/workflows/upstream-sync.yml`
+   - `.github/workflows/images.yml`
    - README / CONTRIBUTING intro sections that describe this fork
 2. **Gated upstream workflows** (`.github/workflows/publish.yml`,
    `docker-publish.yml`, `version-packages.yml`) — keep the
    `if: github.repository == 'redpangilinan/crikket'` job guard so this fork
-   never publishes npm packages, GHCR images, or Changeset release PRs.
+   never npm-publishes or opens Changeset release PRs. Kode GT GHCR images
+   come from `.github/workflows/images.yml`, not `docker-publish.yml`.
 3. **Application code** — prefer upstream unless Kode GT has an intentional
    patch on that hunk. If we have a fork patch, re-apply it on top of the
    upstream change and leave a short comment in the PR (and a Linear issue if
@@ -154,22 +157,26 @@ branches until the sync lands.
 | Workflow | Runs here? |
 | --- | --- |
 | `CI` | Yes — PRs and pushes to `main`. Includes **Package extension (Load unpacked)**, which builds the Chrome MV3 zip against `VITE_APP_URL` / `VITE_SERVER_URL` (https://crikket.kodegt.com in CI) and uploads it as `crikket-extension-chrome-mv3`. Also includes **MinIO storage smoke**, which downloads pinned community MinIO/`mc` GitHub release binaries, applies `deploy/minio` policy/CORS, and runs `scripts/storage-smoke.ts`. |
+| `Images` | Yes — push to `main` + manual. Builds and pushes `crikket-web`, `crikket-server`, and `crikket-proxy` to `ghcr.io/gustavoteixeirah/` with tags `:main` and `:sha-<short sha>`. Coolify pulls these; it must not build on the VPS. |
 | `Upstream sync check` | Yes — weekly + manual. Informational only. |
 | `Publish Packages` | No — still npm-publishes `@crikket-io/capture`; gated to upstream repo |
-| `Publish Docker Images` | No — would push GHCR images from the fork; gated to upstream repo |
+| `Publish Docker Images` | No — upstream GHCR (`ghcr.io/redpangilinan/…`); gated to upstream repo. Kode GT images are the `Images` workflow above. |
 | `Version Packages` | No — would open Changeset release PRs; gated to upstream repo |
 
-Kode GT deploys with Coolify, not these upstream publish jobs.
+Do not use the gated upstream publish jobs from this fork. Production images
+come from `Images` → GHCR → Coolify pull.
 
 `bun run test` (and the CI Test step) run `scripts/ci-test.sh`. Billing unit
 tests use Bun `mock.module` against the same specifiers; running that package's
 files in one process leaks mocks, so the script runs
 `packages/billing/test/*.test.ts` one file at a time.
 
-## Coolify deploy (source build)
+## Coolify deploy (pull GHCR images)
 
 Production at [crikket.kodegt.com](https://crikket.kodegt.com) must run **this
-fork's `main`**, not `ghcr.io/redpangilinan/crikket-*:latest`.
+fork's GHCR images**, not `ghcr.io/redpangilinan/crikket-*:latest`, and must
+**not** build Dockerfiles on the VPS. The web image (`bun run build --
+--filter=web`) is OOM-killed there (exit 137).
 
 Use Coolify resource type **Docker Compose** (Git), not Nixpacks and not a
 single Dockerfile.
@@ -182,12 +189,51 @@ single Dockerfile.
 | Docker Compose file | `docker-compose.coolify.yml` |
 | Build pack | Docker Compose |
 
-That file **builds** `server` and `web` from `apps/server/Dockerfile` and
-`apps/web/Dockerfile` (same Dockerfiles as the upstream GHCR workflow), and
-`proxy` from `docker/caddy/Dockerfile` (Caddy `2.10-alpine` with
-`Caddyfile.coolify` copied in). Upstream `docker-compose.yml` /
-`docker-compose.external-db.yml` still pull published images and must not be
-used for this fork's production.
+`docker-compose.coolify.yml` **pulls** (never builds):
+
+- `ghcr.io/gustavoteixeirah/crikket-server:${CRIKKET_IMAGE_TAG:-main}` (`server` and `migrate`)
+- `ghcr.io/gustavoteixeirah/crikket-web:${CRIKKET_IMAGE_TAG:-main}`
+- `ghcr.io/gustavoteixeirah/crikket-proxy:${CRIKKET_IMAGE_TAG:-main}`
+
+All three use `pull_policy: always`. Images are produced by
+`.github/workflows/images.yml` from the same Dockerfiles (`apps/server/Dockerfile`,
+`apps/web/Dockerfile`, `docker/caddy/Dockerfile`). Local/dev compose files
+(`docker-compose.yml`, `docker-compose.external-db.yml`,
+`docker-compose.caddy.yml`) are unchanged.
+
+### Deploy flow
+
+1. Squash-merge to `main`.
+2. Wait for the **Images** workflow on `main` to go green (web, server, and
+   proxy all pushed).
+3. Redeploy the Coolify stack. It pulls `:main` (or a pin, below).
+
+Do not redeploy until Images is green: Coolify would pull yesterday's `:main`
+or fail if the tag does not exist yet.
+
+Optional rollback / pin: set `CRIKKET_IMAGE_TAG=sha-<short sha>` in the
+Coolify environment (the short SHA from the Images run, for example
+`sha-43a2b15`) and redeploy. Unset it to track `:main` again.
+
+### GHCR package visibility
+
+The Images workflow authenticates with `GITHUB_TOKEN` and can **push**, but
+it cannot flip package visibility. New GHCR packages are often created
+**private**. Coolify then cannot pull unless one of these is done:
+
+**(a) Preferred — make each package Public** (repo is public; images contain
+no secrets). Once, in GitHub:
+
+1. Open https://github.com/gustavoteixeirah?tab=packages
+2. For `crikket-web`, `crikket-server`, and `crikket-proxy`: Package settings
+   → Change visibility → Public.
+
+**(b) Keep packages private** and add GHCR registry credentials in Coolify
+(a GitHub PAT with `read:packages`, username `gustavoteixeirah`). Use this
+only if the packages must stay private.
+
+`GITHUB_TOKEN` in Actions is enough to **publish**. It is not enough to
+change visibility or for Coolify to pull private packages.
 
 ### Domains and ports
 
@@ -211,8 +257,8 @@ single-file mount of `./Caddyfile.coolify` was created as a **directory**
 (`is_directory=true`), so Docker failed with `mount ... not a directory` and
 the proxy never started.
 
-The Caddyfile is therefore **baked into** `crikket-proxy:coolify` via
-`docker/caddy/Dockerfile` (`COPY Caddyfile.coolify /etc/caddy/Caddyfile`).
+The Caddyfile is therefore **baked into** `ghcr.io/gustavoteixeirah/crikket-proxy`
+via `docker/caddy/Dockerfile` (`COPY Caddyfile.coolify /etc/caddy/Caddyfile`).
 Do **not** add a Coolify file storage entry for it. If an old directory
 storage named for `Caddyfile.coolify` still exists, delete it so Coolify
 does not keep mounting a folder over `/etc/caddy/Caddyfile`.
@@ -271,22 +317,27 @@ git). No defaults that look like secrets are in the compose file. Public
 origin defaults (`https://crikket.kodegt.com`) are Kode GT-specific;
 self-hosters must override.
 
-**Web (build args + runtime; `docker-entrypoint.sh` also substitutes
-placeholders):**
+**Web (runtime; Images workflow bakes public URLs at build time;
+`docker-entrypoint.sh` still requires the three origin vars and substitutes
+placeholders for optional keys):**
 
 - `NEXT_PUBLIC_SITE_URL` (compose default: `https://crikket.kodegt.com`)
 - `NEXT_PUBLIC_APP_URL` (same default)
 - `NEXT_PUBLIC_SERVER_URL` (same default)
+
+Do **not** leave those three empty: the entrypoint exits if they are unset.
+Compose defaults them so an empty Coolify value does not crash-loop web.
+The Images workflow also passes `https://crikket.kodegt.com` as web
+`NEXT_PUBLIC_*` build args (public URLs, not secrets).
 
 Kode GT production can rely on those defaults. Still set them in Coolify if
 the service already has them.
 
 Optional web: `NEXT_PUBLIC_CRIKKET_KEY`,
 `NEXT_PUBLIC_DEMO_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`.
-`NEXT_PUBLIC_GOOGLE_AUTH_ENABLED` is a leftover build arg (default false);
-the Google button is **not** gated by it. `VITE_APP_URL` / `VITE_SERVER_URL`
-are passed as build args for completeness; the Coolify images do not build
-the browser extension.
+`NEXT_PUBLIC_GOOGLE_AUTH_ENABLED` defaults to `false` at runtime; the Google
+button is **not** gated by it. `VITE_APP_URL` / `VITE_SERVER_URL` are unused
+by the Coolify web image (the browser extension is not built there).
 
 **Server / migrate:**
 
