@@ -12,6 +12,7 @@ import { nanoid } from "nanoid"
 import { isWebhookPrivateUrlAllowed } from "./app-url"
 import {
   REPORT_READY_EVENT,
+  TRANSCRIPT_READY_EVENT,
   WEBHOOK_DEFAULT_BATCH,
   WEBHOOK_DELIVERY_STATUS,
   WEBHOOK_HEADER_DELIVERY,
@@ -30,6 +31,7 @@ import { stringifyWebhookPayload } from "./payload"
 import {
   buildReportReadyPayloadForReport,
   buildSyntheticReportReadyPayload,
+  buildTranscriptReadyPayloadForReport,
 } from "./payload-builder"
 import {
   assertWebhookOrgIsolation,
@@ -127,6 +129,76 @@ export async function enqueueReportReadyWebhookSafe(input: {
   } catch (error) {
     reportNonFatalError(
       `Failed to enqueue report.ready webhook for ${input.bugReportId}`,
+      error
+    )
+  }
+}
+
+export async function enqueueTranscriptReadyWebhook(input: {
+  bugReportId: string
+  organizationId: string
+}): Promise<{ deliveryId: string | null; enqueued: boolean }> {
+  const report = await db.query.bugReport.findFirst({
+    where: and(
+      eq(bugReport.id, input.bugReportId),
+      eq(bugReport.organizationId, input.organizationId)
+    ),
+    columns: {
+      id: true,
+      organizationId: true,
+    },
+  })
+
+  if (!report) {
+    return { deliveryId: null, enqueued: false }
+  }
+
+  const endpoint = await db.query.organizationWebhookEndpoint.findFirst({
+    where: and(
+      eq(organizationWebhookEndpoint.organizationId, report.organizationId),
+      eq(organizationWebhookEndpoint.enabled, true)
+    ),
+  })
+
+  if (!endpoint) {
+    return { deliveryId: null, enqueued: false }
+  }
+
+  assertWebhookOrgIsolation({
+    endpointOrganizationId: endpoint.organizationId,
+    reportOrganizationId: report.organizationId,
+  })
+
+  const deliveryId = nanoid(16)
+  const inserted = await insertDeliveryIfNew({
+    destinationUrl: endpoint.url,
+    endpointId: endpoint.id,
+    eventType: TRANSCRIPT_READY_EVENT,
+    id: deliveryId,
+    organizationId: endpoint.organizationId,
+    payload: {},
+    sourceId: report.id,
+    sourceType: WEBHOOK_SOURCE_TYPE.bugReport,
+  })
+
+  if (!inserted) {
+    return { deliveryId: null, enqueued: false }
+  }
+
+  queueBackgroundDelivery(deliveryId)
+
+  return { deliveryId, enqueued: true }
+}
+
+export async function enqueueTranscriptReadyWebhookSafe(input: {
+  bugReportId: string
+  organizationId: string
+}): Promise<void> {
+  try {
+    await enqueueTranscriptReadyWebhook(input)
+  } catch (error) {
+    reportNonFatalError(
+      `Failed to enqueue transcript.ready webhook for ${input.bugReportId}`,
       error
     )
   }
@@ -274,7 +346,7 @@ export async function processWebhookDelivery(input: {
         "content-type": "application/json",
         "user-agent": "Crikket-Webhook/1.0",
         [WEBHOOK_HEADER_DELIVERY]: claimed.id,
-        [WEBHOOK_HEADER_EVENT]: REPORT_READY_EVENT,
+        [WEBHOOK_HEADER_EVENT]: claimed.eventType,
         [WEBHOOK_HEADER_SIGNATURE]: signature,
         [WEBHOOK_HEADER_TIMESTAMP]: timestamp,
       },
@@ -433,6 +505,7 @@ async function insertDeliveryIfNew(input: {
 async function claimWebhookDelivery(deliveryId: string): Promise<{
   attempts: number
   endpointId: string
+  eventType: string
   id: string
   organizationId: string
   sourceId: string
@@ -467,6 +540,7 @@ async function claimWebhookDelivery(deliveryId: string): Promise<{
     .returning({
       attempts: webhookDelivery.attempts,
       endpointId: webhookDelivery.endpointId,
+      eventType: webhookDelivery.eventType,
       id: webhookDelivery.id,
       organizationId: webhookDelivery.organizationId,
       sourceId: webhookDelivery.sourceId,
@@ -478,6 +552,7 @@ async function claimWebhookDelivery(deliveryId: string): Promise<{
 
 async function resolveDeliveryPayload(input: {
   delivery: {
+    eventType: string
     id: string
     sourceId: string
     sourceType: string
@@ -495,6 +570,21 @@ async function resolveDeliveryPayload(input: {
     if (existing?.payload && Object.keys(existing.payload).length > 0) {
       return existing.payload
     }
+  }
+
+  if (input.delivery.eventType === TRANSCRIPT_READY_EVENT) {
+    const transcriptPayload = await buildTranscriptReadyPayloadForReport({
+      bugReportId: input.delivery.sourceId,
+      deliveryId: input.delivery.id,
+      organizationId: input.organizationId,
+      test: input.delivery.sourceType === WEBHOOK_SOURCE_TYPE.test,
+    })
+
+    if (!transcriptPayload) {
+      throw new Error("Transcript was not found for this webhook delivery.")
+    }
+
+    return transcriptPayload as unknown as Record<string, unknown>
   }
 
   const payload = await buildReportReadyPayloadForReport({

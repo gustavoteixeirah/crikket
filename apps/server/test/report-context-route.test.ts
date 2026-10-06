@@ -63,6 +63,9 @@ function createStore(reports: AgentReportRecord[]): AgentReportStore {
     findNetworkRequest() {
       return Promise.resolve(null)
     },
+    findTranscript() {
+      return Promise.resolve(null)
+    },
     findReport(query) {
       return Promise.resolve(
         reports.find(

@@ -21,6 +21,7 @@ import {
   AgentReportNotFoundError,
   type AgentReportRecord,
   type AgentReportStore,
+  type AgentReportTranscript,
 } from "../src/lib/agent-reports"
 
 function createReport(
@@ -101,6 +102,7 @@ function createStore(input: {
   logs?: AgentReportLog[]
   network?: AgentReportNetworkRequest[]
   reports: AgentReportRecord[]
+  transcript?: AgentReportTranscript | null
 }): AgentReportStore {
   const actions = input.actions ?? []
   const logs = input.logs ?? []
@@ -119,6 +121,9 @@ function createStore(input: {
     findNetworkRequest() {
       const empty: AgentNetworkRequestPayload | null = null
       return Promise.resolve(empty)
+    },
+    findTranscript() {
+      return Promise.resolve(input.transcript ?? null)
     },
     findReport(query) {
       if (input.leakedReport) {
@@ -254,6 +259,35 @@ describe("agent report context package", () => {
     expect(timeline.some((event) => event.id === "err")).toBeTrue()
   })
 
+  it("fills transcript text and metadata when speech-to-text completed", async () => {
+    const transcript: AgentReportTranscript = {
+      completedAt: "2026-10-01T00:03:00.000Z",
+      durationSeconds: 2,
+      error: null,
+      language: "en",
+      model: "whisper-1",
+      segments: [{ end: 2, start: 0, text: "Pay now" }],
+      startedAt: "2026-10-01T00:02:50.000Z",
+      status: "completed",
+      text: "Pay now",
+    }
+    const store = createStore({
+      reports: [createReport()],
+      transcript,
+    })
+
+    const context = await getReportContextForOrganization(
+      { organizationId: "org_a", reportId: "report_a" },
+      store
+    )
+
+    expect(context.transcript).toBe("Pay now")
+    expect(context.transcriptMeta).toEqual(transcript)
+    expect(context.markdown).toContain("Pay now")
+    expect(context.markdown).toContain("Status: completed")
+    expect(context.markdown).toContain("Pay now")
+  })
+
   it("does not return another organization's report even when the id is known", async () => {
     const store = createStore({
       reports: [createReport({ id: "report_b", organizationId: "org_b" })],
@@ -378,6 +412,7 @@ describe("agent report context package", () => {
       ].sort(compareTimelineEvents),
       title: "Checkout freeze",
       transcript: null,
+      transcriptMeta: null,
       updatedAt: "2026-10-01T00:02:00.000Z",
       url: "https://app.example.com/checkout",
       visibility: "private",

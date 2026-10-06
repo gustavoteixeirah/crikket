@@ -2,6 +2,10 @@ import {
   buildPaginationMeta,
   type PaginationMeta,
 } from "@crikket/shared/lib/server/pagination"
+import type {
+  ReportTranscriptSummary,
+  ReportTranscriptView,
+} from "./transcription/types"
 
 export const AGENT_REPORT_DEFAULT_PAGE_SIZE = 20
 export const AGENT_REPORT_MAX_PAGE_SIZE = 50
@@ -72,6 +76,9 @@ export type AgentPaginatedEvents<TItem> = {
   pagination: PaginationMeta
 }
 
+export type AgentReportTranscript = ReportTranscriptView
+export type AgentReportTranscriptSummary = ReportTranscriptSummary
+
 export type AgentReportDetail = {
   actions: AgentPaginatedEvents<AgentReportAction>
   createdAt: string
@@ -98,6 +105,7 @@ export type AgentReportDetail = {
   status: string
   tags: string[]
   title: string
+  transcript: AgentReportTranscriptSummary | null
   updatedAt: string
   url: string | null
   visibility: string
@@ -155,6 +163,10 @@ export type AgentReportStore = {
     organizationId: string
     reportId: string
   }) => Promise<AgentReportRecord | null>
+  findTranscript: (input: {
+    organizationId: string
+    reportId: string
+  }) => Promise<AgentReportTranscript | null>
   getArtifactUrl: (input: {
     expiresInSeconds: number
     objectKey: string | null
@@ -386,6 +398,7 @@ export async function getReportForOrganization(
     logsCount,
     networkRequests,
     networkCount,
+    transcript,
   ] = await Promise.all([
     store.listActions({
       limit: actionsPagination.limit,
@@ -417,6 +430,7 @@ export async function getReportForOrganization(
       organizationId: input.organizationId,
       reportId: input.reportId,
     }),
+    store.findTranscript(input),
   ])
 
   return {
@@ -471,6 +485,17 @@ export async function getReportForOrganization(
     status: report.status,
     tags: Array.isArray(report.tags) ? report.tags : [],
     title: report.title || "Untitled Bug Report",
+    transcript: transcript
+      ? {
+          completedAt: transcript.completedAt,
+          error: transcript.error,
+          language: transcript.language,
+          model: transcript.model,
+          segmentCount: transcript.segments.length,
+          status: transcript.status,
+          text: transcript.text,
+        }
+      : null,
     updatedAt: report.updatedAt.toISOString(),
     url: report.url,
     visibility: report.visibility,

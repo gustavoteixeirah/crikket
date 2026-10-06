@@ -31,6 +31,7 @@ import {
   queueBugReportIngestionJob,
 } from "./ingestion-jobs"
 import { getStorageProvider } from "./storage"
+import { enqueueTranscriptionForReadyReportSafe } from "./transcription/jobs"
 import {
   buildFallbackTitle,
   formatDurationMs,
@@ -399,6 +400,10 @@ export async function finalizeBugReportUpload(input: {
   }
 
   await enqueueReportReadyWebhookSafe({
+    bugReportId: uploadSession.id,
+    organizationId: uploadSession.organizationId,
+  })
+  await enqueueTranscriptionForReadyReportSafe({
     bugReportId: uploadSession.id,
     organizationId: uploadSession.organizationId,
   })

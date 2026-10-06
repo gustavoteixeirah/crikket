@@ -1,4 +1,5 @@
 export const REPORT_READY_EVENT = "report.ready"
+export const TRANSCRIPT_READY_EVENT = "transcript.ready"
 export const WEBHOOK_API_VERSION = "2026-10-06"
 export const WEBHOOK_SECRET_PREFIX = "whsec_"
 

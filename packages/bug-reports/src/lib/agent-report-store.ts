@@ -5,6 +5,7 @@ import {
   bugReportLog,
   bugReportNetworkRequest,
 } from "@crikket/db/schema/bug-report"
+import { bugReportTranscript } from "@crikket/db/schema/transcription"
 import {
   and,
   asc,
@@ -23,6 +24,7 @@ import type {
   AgentReportStore,
 } from "./agent-reports"
 import { resolveArtifactUrl } from "./storage"
+import { toTranscriptView } from "./transcription/transcript-view"
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -233,6 +235,16 @@ export const drizzleAgentReportStore: AgentReportStore = {
     }
 
     return record
+  },
+  async findTranscript(input) {
+    const row = await db.query.bugReportTranscript.findFirst({
+      where: and(
+        eq(bugReportTranscript.bugReportId, input.reportId),
+        eq(bugReportTranscript.organizationId, input.organizationId)
+      ),
+    })
+
+    return row ? toTranscriptView(row) : null
   },
   getArtifactUrl(input) {
     return resolveArtifactUrl({

@@ -4,6 +4,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+RUN apk add --no-cache ffmpeg
+
 COPY package.json bun.lock turbo.json tsconfig.json biome.jsonc ./
 COPY apps ./apps
 COPY packages ./packages

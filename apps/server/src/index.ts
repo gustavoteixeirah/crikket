@@ -11,6 +11,7 @@ import { drizzleAgentReportStore } from "@crikket/bug-reports/lib/agent-report-s
 import { runBugReportIngestionPass } from "@crikket/bug-reports/lib/ingestion-jobs"
 import { runStalePendingBugReportCleanupPass } from "@crikket/bug-reports/lib/orphan-cleanup"
 import { runArtifactCleanupPass } from "@crikket/bug-reports/lib/storage"
+import { runTranscriptionPass } from "@crikket/bug-reports/lib/transcription/jobs"
 import { runWebhookDeliveryPass } from "@crikket/bug-reports/lib/webhooks/delivery"
 import { env } from "@crikket/env/server"
 import { OpenAPIHandler } from "@orpc/openapi/fetch"
@@ -37,6 +38,7 @@ const BUG_REPORT_INGESTION_INTERVAL_MS = 60 * 1000
 const BUG_REPORT_ORPHAN_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
 const STORAGE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
 const WEBHOOK_DELIVERY_INTERVAL_MS = 15 * 1000
+const TRANSCRIPTION_INTERVAL_MS = 20 * 1000
 type RateLimitHeaders = Record<string, string>
 
 function parseHeaderNumber(value: string | undefined): number | null {
@@ -214,6 +216,14 @@ const webhookDeliveryInterval = setInterval(() => {
 }, WEBHOOK_DELIVERY_INTERVAL_MS)
 
 webhookDeliveryInterval.unref?.()
+
+const transcriptionInterval = setInterval(() => {
+  runTranscriptionPass({ limit: 5 }).catch((error: unknown) => {
+    console.error("[transcription] failed scheduled transcription pass", error)
+  })
+}, TRANSCRIPTION_INTERVAL_MS)
+
+transcriptionInterval.unref?.()
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   plugins: [

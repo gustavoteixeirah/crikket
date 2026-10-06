@@ -1,4 +1,8 @@
-import { REPORT_READY_EVENT, WEBHOOK_API_VERSION } from "./constants"
+import {
+  REPORT_READY_EVENT,
+  TRANSCRIPT_READY_EVENT,
+  WEBHOOK_API_VERSION,
+} from "./constants"
 
 export interface ReportReadyDebuggerError {
   level: string
@@ -163,6 +167,69 @@ export function buildReportReadyEventPayload(
     },
     id: input.deliveryId,
     type: REPORT_READY_EVENT,
+  }
+}
+
+export interface TranscriptReadyEventPayload {
+  apiVersion: typeof WEBHOOK_API_VERSION
+  createdAt: string
+  data: {
+    organization: {
+      id: string
+      name: string
+      slug: string
+    }
+    report: {
+      id: string
+      title: string | null
+      url: string
+    }
+    test: boolean
+    transcript: {
+      completedAt: string | null
+      durationSeconds: number | null
+      language: string | null
+      model: string | null
+      segmentCount: number
+      status: string
+      text: string | null
+    }
+  }
+  id: string
+  type: typeof TRANSCRIPT_READY_EVENT
+}
+
+export interface BuildTranscriptReadyEventInput {
+  createdAt?: Date
+  deliveryId: string
+  organization: {
+    id: string
+    name: string
+    slug: string
+  }
+  report: {
+    id: string
+    title: string | null
+    url: string
+  }
+  test?: boolean
+  transcript: TranscriptReadyEventPayload["data"]["transcript"]
+}
+
+export function buildTranscriptReadyEventPayload(
+  input: BuildTranscriptReadyEventInput
+): TranscriptReadyEventPayload {
+  return {
+    apiVersion: WEBHOOK_API_VERSION,
+    createdAt: (input.createdAt ?? new Date()).toISOString(),
+    data: {
+      organization: input.organization,
+      report: input.report,
+      test: input.test === true,
+      transcript: input.transcript,
+    },
+    id: input.deliveryId,
+    type: TRANSCRIPT_READY_EVENT,
   }
 }
 

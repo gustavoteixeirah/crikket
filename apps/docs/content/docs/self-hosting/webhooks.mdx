@@ -3,10 +3,13 @@ title: Outbound Webhooks
 description: Signed report.ready events for n8n, Slack, and AI agents after ingest.
 ---
 
-Crikket can POST a signed `report.ready` event when a bug report finishes
-ingest (`submission_status = ready`). Delivery is asynchronous: the ingest
-request is never blocked on the remote webhook. Failed deliveries retry with
-exponential backoff (8 attempts, 2 minutes through 4 hours).
+Crikket can POST signed `report.ready` and `transcript.ready` events.
+`report.ready` fires when a bug report finishes ingest
+(`submission_status = ready`). `transcript.ready` fires later if the
+organization has OpenAI transcription enabled and the job completes.
+Delivery is asynchronous: ingest is never blocked on the remote webhook.
+Failed deliveries retry with exponential backoff (8 attempts, 2 minutes
+through 4 hours).
 
 Configure the URL and signing secret in **Settings → Webhooks** as an
 organization owner or admin.
@@ -136,3 +139,44 @@ function verifyCrikketWebhook({ body, secret, signature, timestamp }) {
 
 Use `X-Crikket-Delivery` as the idempotency key so retries are not processed
 twice.
+
+## Event: `transcript.ready`
+
+Fired after a report video is transcribed successfully. Not fired when
+transcription is disabled, skipped (for example missing ffmpeg on a file
+over 25MB), or failed. The same report can emit both `report.ready` and
+`transcript.ready`; idempotency is per `(endpoint, event, report id)`.
+
+`X-Crikket-Event` is `transcript.ready`. The body is a summary: full
+segment timestamps live on `get_report_context`.
+
+```json
+{
+  "apiVersion": "2026-10-06",
+  "id": "V1StGXR8_Z5jdHi6",
+  "type": "transcript.ready",
+  "createdAt": "2026-10-06T12:05:00.000Z",
+  "data": {
+    "test": false,
+    "organization": {
+      "id": "org_123",
+      "name": "Kode GT",
+      "slug": "kodegt"
+    },
+    "report": {
+      "id": "rep_123",
+      "title": "Checkout freeze",
+      "url": "https://crikket.kodegt.com/s/rep_123"
+    },
+    "transcript": {
+      "status": "completed",
+      "text": "The checkout button does nothing.",
+      "language": "en",
+      "model": "gpt-4o-mini-transcribe",
+      "durationSeconds": 12.4,
+      "segmentCount": 2,
+      "completedAt": "2026-10-06T12:05:00.000Z"
+    }
+  }
+}
+```

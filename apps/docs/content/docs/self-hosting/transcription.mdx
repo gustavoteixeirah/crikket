@@ -1,0 +1,69 @@
+---
+title: Transcription
+description: Optional OpenAI speech-to-text for report video audio using an organization BYOK key.
+---
+
+Crikket can transcribe the audio of a report **video** after ingest using
+OpenAI. This is optional and **bring-your-own-key**:
+
+- The OpenAI API key is **never** stored in git or in Coolify/env.
+- An organization owner or admin pastes it in **Settings → Transcription**
+  after deploy.
+- The server encrypts it at rest with AES-256-GCM.
+
+## Server environment
+
+| Name | Required | Purpose |
+| --- | --- | --- |
+| `ORG_SECRETS_ENCRYPTION_KEY` | only when an org saves a key | 32-byte key, standard base64. Generate with `openssl rand -base64 32`. |
+
+If this variable is missing or not 32 bytes of base64, the settings page says
+transcription cannot be configured. The server still boots and ingest still
+works. The key is **not** derived from `BETTER_AUTH_SECRET`.
+
+Never put an OpenAI API key in environment variables.
+
+## Organization settings
+
+1. Sign in as an organization owner or admin.
+2. Open **Settings → Transcription**.
+3. Paste the OpenAI API key, choose a model (`gpt-4o-mini-transcribe` default,
+   or `whisper-1`), optionally set a language hint, enable the toggle, and
+   save.
+4. The key is shown masked (last 4 characters) after save. Use **Replace**
+   (paste a new key and save), **Remove key**, or **Test key**.
+
+Test key calls `GET /v1/models/{model}` with the provided or stored key. It
+does not upload audio.
+
+## Pipeline
+
+When a video report finishes ingest and the org has transcription enabled:
+
+1. A DB-backed job is enqueued (same claim/retry shape as debugger ingest).
+2. The server reads the capture from object storage.
+3. Files over 25MB are compressed with ffmpeg (installed in the server image).
+   If ffmpeg is missing and the file is over 25MB, the transcript is marked
+   `skipped` with a clear error.
+4. Audio is sent to OpenAI `POST /v1/audio/transcriptions`. `whisper-1`
+   requests `verbose_json` segments. `gpt-4o-mini-transcribe` stores text;
+   segments are included only when OpenAI returns them.
+5. Failures never fail ingest. Jobs retry with exponential backoff (5
+   attempts). Admins can **Retry transcription** on the report page.
+
+Screenshot-only reports are not transcribed.
+
+## How agents read the transcript
+
+| Surface | Field |
+| --- | --- |
+| MCP `get_report_context` / `GET /api/v1/reports/:id/context` | `transcript` (text when completed, else `null`) and `transcriptMeta` (status, segments, model, error) |
+| MCP `get_report` | `transcript` summary (`status`, `text`, `segmentCount`, …) |
+| Webhook | `transcript.ready` after a successful transcription |
+
+## Webhook: `transcript.ready`
+
+See [Outbound Webhooks](/docs/self-hosting/webhooks). Fired only when
+transcription **completes**. Skipped or failed jobs do not emit the event.
+The payload includes transcript text and a segment count, not the full
+segment list (those are in the context package).

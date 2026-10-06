@@ -6,9 +6,11 @@ import {
   bugReportLog,
   bugReportNetworkRequest,
 } from "@crikket/db/schema/bug-report"
+import { bugReportTranscript } from "@crikket/db/schema/transcription"
 import { env } from "@crikket/env/server"
 import { and, asc, count, eq, gte, isNull, or } from "drizzle-orm"
 import { getStorageProvider } from "../storage"
+import { toTranscriptView } from "../transcription/transcript-view"
 import { buildBugReportAppUrl } from "./app-url"
 import {
   WEBHOOK_DEBUGGER_TOP_ERRORS,
@@ -16,8 +18,10 @@ import {
 } from "./constants"
 import {
   buildReportReadyEventPayload,
+  buildTranscriptReadyEventPayload,
   type ReportReadyEventPayload,
   type ReportReadyMediaLink,
+  type TranscriptReadyEventPayload,
 } from "./payload"
 
 interface DeviceInfoShape {
@@ -109,6 +113,75 @@ export async function buildReportReadyPayloadForReport(input: {
       url: buildBugReportAppUrl(report.id),
     },
     test: input.test,
+  })
+}
+
+export async function buildTranscriptReadyPayloadForReport(input: {
+  bugReportId: string
+  deliveryId: string
+  organizationId: string
+  test?: boolean
+}): Promise<TranscriptReadyEventPayload | null> {
+  const report = await db.query.bugReport.findFirst({
+    where: and(
+      eq(bugReport.id, input.bugReportId),
+      eq(bugReport.organizationId, input.organizationId)
+    ),
+    columns: {
+      id: true,
+      organizationId: true,
+      title: true,
+    },
+  })
+
+  if (!report) {
+    return null
+  }
+
+  const org = await db.query.organization.findFirst({
+    where: eq(organization.id, report.organizationId),
+    columns: {
+      id: true,
+      name: true,
+      slug: true,
+    },
+  })
+
+  if (!org) {
+    return null
+  }
+
+  const transcriptRow = await db.query.bugReportTranscript.findFirst({
+    where: and(
+      eq(bugReportTranscript.bugReportId, report.id),
+      eq(bugReportTranscript.organizationId, report.organizationId)
+    ),
+  })
+
+  if (!transcriptRow) {
+    return null
+  }
+
+  const transcript = toTranscriptView(transcriptRow)
+
+  return buildTranscriptReadyEventPayload({
+    deliveryId: input.deliveryId,
+    organization: org,
+    report: {
+      id: report.id,
+      title: report.title,
+      url: buildBugReportAppUrl(report.id),
+    },
+    test: input.test,
+    transcript: {
+      completedAt: transcript.completedAt,
+      durationSeconds: transcript.durationSeconds,
+      language: transcript.language,
+      model: transcript.model,
+      segmentCount: transcript.segments.length,
+      status: transcript.status,
+      text: transcript.text,
+    },
   })
 }
 

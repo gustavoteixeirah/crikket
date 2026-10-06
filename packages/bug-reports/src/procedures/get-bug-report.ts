@@ -7,6 +7,7 @@ import {
 import { ORPCError } from "@orpc/server"
 import { eq } from "drizzle-orm"
 import { resolveCaptureUrl } from "../lib/storage"
+import { getTranscriptForReport } from "../lib/transcription/jobs"
 import {
   assertBugReportAccessById,
   assertVisibilityAccess,
@@ -56,9 +57,15 @@ export const getBugReportById = o
     const priority = priorityValues.includes(report.priority as Priority)
       ? (report.priority as Priority)
       : PRIORITY_OPTIONS.none
-    const attachmentUrl = await resolveCaptureUrl({
-      captureKey: report.captureKey,
-    })
+    const [attachmentUrl, transcript] = await Promise.all([
+      resolveCaptureUrl({
+        captureKey: report.captureKey,
+      }),
+      getTranscriptForReport({
+        bugReportId: report.id,
+        organizationId: report.organizationId,
+      }),
+    ])
 
     return {
       id: report.id,
@@ -89,5 +96,6 @@ export const getBugReportById = o
         name: report.organization.name,
         logo: report.organization.logo,
       },
+      transcript,
     }
   })
