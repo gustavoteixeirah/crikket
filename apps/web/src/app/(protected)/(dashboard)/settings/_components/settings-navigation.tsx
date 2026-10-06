@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@crikket/ui/lib/utils"
-import { Building2, CreditCard, KeyRound, UserRound } from "lucide-react"
+import { Bot, Building2, CreditCard, KeyRound, UserRound } from "lucide-react"
 import type { Route } from "next"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -24,6 +24,12 @@ const SETTINGS_ITEMS = [
     title: "Public Keys",
     description: "Widget keys, origins, embeds",
     icon: KeyRound,
+  },
+  {
+    href: "/settings/api-keys",
+    title: "API Keys",
+    description: "Agent and MCP access",
+    icon: Bot,
   },
   {
     href: "/settings/billing",

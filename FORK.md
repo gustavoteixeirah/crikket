@@ -15,17 +15,22 @@ Upstream Crikket is open-source bug reporting with reproduction context
 (screenshots, recordings, console logs, network, steps).
 
 Kode GT is evolving this fork into an internal **QA / bug-report tool whose
-reports feed AI coding agents**. Upcoming work (separate tickets) includes:
+reports feed AI coding agents**.
 
-- MCP server so agents can list and fetch reports and artifacts
+Landed:
+
+- Remote MCP at `/mcp` so agents can list and fetch reports and artifacts
+- Organization API keys (hashed, read-only, org-scoped)
+
+Upcoming work (separate tickets) includes:
+
 - Outbound webhooks when a report is ready
-- Organization API keys / machine-readable API
+- Machine-readable REST API reusing organization API keys (KOD-273)
 - Agent-ready report packages (one-call context for a coding agent)
 - Fork-specific capture, storage, and access-control changes
 
-Until those land, this is still Crikket: capture bugs, attach context, share
-reports. The fork exists so we can add agent integrations without publishing
-Kode GT product changes to upstream.
+The fork exists so we can add agent integrations without publishing Kode GT
+product changes to upstream.
 
 ## Attribution
 
@@ -279,3 +284,59 @@ git clone https://github.com/gustavoteixeirah/crikket.git
 cd crikket
 git checkout main
 ```
+
+## Connect agents (MCP)
+
+The Hono server exposes a **remote Streamable HTTP MCP** endpoint at
+`POST /mcp`. Coding agents (Cursor cloud agents, Grok, etc.) connect with a
+URL and an organization API key. There is no browser session.
+
+Production URL: `https://crikket.kodegt.com/mcp`
+
+### Create an API key
+
+1. Sign in to the app.
+2. Open **Settings → API Keys**.
+3. As an organization owner or admin, create a key (label only). The secret
+   is shown **once**. Prefix: `crik_ak_`. Scope is read-only.
+4. Store the secret in the agent environment, never in git.
+
+Keys are hashed at rest (`sha256`). Revoke from the same settings page. A key
+can only list and fetch reports that belong to its organization.
+
+The same keys are a reusable auth layer for a later REST API (KOD-273). They
+are not MCP-specific.
+
+### Cursor `mcp.json`
+
+Use a placeholder for the secret. Do not commit real keys.
+
+```json
+{
+  "mcpServers": {
+    "crikket": {
+      "url": "https://crikket.kodegt.com/mcp",
+      "headers": {
+        "Authorization": "Bearer crik_ak_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+Local server: replace the URL with `http://localhost:3000/mcp` (or your
+`SERVER_PORT`).
+
+### Tools
+
+| Tool | Purpose |
+| --- | --- |
+| `list_reports` | Paginated org reports. Filters: `status`, `createdAfter`, `createdBefore`, `search`. |
+| `get_report` | Detail: title, description, URL, browser/OS/viewport, timestamps, reporter, truncated steps/logs/network, ingestion metadata. |
+| `list_report_events` | Page further (`kind`: `actions` \| `logs` \| `network`). |
+| `get_network_request` | Headers and bodies for one network request. |
+| `get_report_artifacts` | Short-lived signed URLs for video and screenshot (15 minutes). |
+
+`get_report` returns the first page of events. If `pagination.hasNextPage` is
+true, call `list_report_events`. Artifact URLs are not included in list or
+detail payloads; use `get_report_artifacts`.

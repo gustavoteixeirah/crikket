@@ -5,6 +5,8 @@ import {
 } from "@crikket/api/rate-limit"
 import { appRouter } from "@crikket/api/routers/index"
 import { auth } from "@crikket/auth"
+import { drizzleOrganizationApiKeyStore } from "@crikket/auth/lib/organization-api-key-store"
+import { authenticateOrganizationApiKey } from "@crikket/auth/lib/organization-api-keys"
 import { runBugReportIngestionPass } from "@crikket/bug-reports/lib/ingestion-jobs"
 import { runStalePendingBugReportCleanupPass } from "@crikket/bug-reports/lib/orphan-cleanup"
 import { runArtifactCleanupPass } from "@crikket/bug-reports/lib/storage"
@@ -20,6 +22,8 @@ import { logger } from "hono/logger"
 import { handleCaptureFinalize } from "./capture/finalize-route"
 import { handleCaptureToken } from "./capture/token-route"
 import { handleCaptureUploadSession } from "./capture/upload-session-route"
+import { handleMcpRequest } from "./mcp/handler"
+import { executeCrikketMcpTool } from "./mcp/tools"
 
 const app = new Hono()
 const allowedCorsOrigins = env.CORS_ORIGINS
@@ -105,7 +109,8 @@ app.use(
       if (
         (c.req.path === "/api/embed/capture-token" ||
           c.req.path === "/api/embed/bug-report-upload-session" ||
-          c.req.path === "/api/embed/bug-report-finalize") &&
+          c.req.path === "/api/embed/bug-report-finalize" ||
+          c.req.path === "/mcp") &&
         origin.trim().length > 0
       ) {
         return origin
@@ -114,10 +119,14 @@ app.use(
       if (origin.startsWith("chrome-extension://")) return origin
       return fallbackCorsOrigin
     },
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
     allowHeaders: [
       "Authorization",
       "Content-Type",
+      "Accept",
+      "Last-Event-ID",
+      "mcp-session-id",
+      "mcp-protocol-version",
       "x-crikket-capture-finalize-token",
       "x-crikket-capture-token",
       "x-crikket-public-key",
@@ -141,6 +150,15 @@ app.post("/api/embed/bug-report-finalize", (c) => {
   return handleCaptureFinalize({
     request: c.req.raw,
     shareOrigin: captureShareOrigin,
+  })
+})
+
+app.on(["POST", "GET", "DELETE"], "/mcp", (c) => {
+  return handleMcpRequest({
+    authenticate: (token) =>
+      authenticateOrganizationApiKey(token, drizzleOrganizationApiKeyStore),
+    executeTool: executeCrikketMcpTool,
+    request: c.req.raw,
   })
 })
 
