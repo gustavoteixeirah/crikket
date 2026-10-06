@@ -75,6 +75,8 @@ CORS_ORIGINS
 ENABLE_PAYMENTS (false)
 ```
 
+To limit who can create an account, set `ALLOWED_SIGNUP_DOMAINS` and/or `ALLOWED_SIGNUP_EMAILS` in `apps/server/.env`. See [Production Setup](/docs/self-hosting/production#signup-restriction).
+
 For the supported Caddy deployment, set these to the same public origin:
 
 ```bash

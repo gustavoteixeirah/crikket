@@ -19,12 +19,20 @@ import {
   sendEmailVerificationLinkEmail,
   sendOrganizationInvitationEmail,
 } from "./lib/email/auth-emails"
+import { hasPendingOrganizationInvitation } from "./lib/pending-signup-invitation"
+import {
+  evaluateSignupAccess,
+  isSignupEmailOnAllowlist,
+} from "./lib/signup-allowlist"
 
 const MINUTE = 60
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-const allowedSignupDomains = env.ALLOWED_SIGNUP_DOMAINS
+const signupAllowlist = {
+  allowedDomains: env.ALLOWED_SIGNUP_DOMAINS,
+  allowedEmails: env.ALLOWED_SIGNUP_EMAILS,
+}
 
 const isProduction = env.NODE_ENV === "production"
 const trustedOrigins = Array.from(
@@ -125,19 +133,20 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (user) => {
-          await Promise.resolve()
+          const email = user.email ?? ""
+          const onAllowlist = isSignupEmailOnAllowlist(email, signupAllowlist)
+          const result = evaluateSignupAccess({
+            config: signupAllowlist,
+            email,
+            hasPendingOrganizationInvitation: onAllowlist
+              ? false
+              : await hasPendingOrganizationInvitation(email),
+            mode: "create-account",
+          })
 
-          const email = user.email?.toLowerCase() ?? ""
-          const domain = email.split("@")[1] ?? ""
-
-          const allowAll = allowedSignupDomains.includes("*")
-          if (
-            !allowAll &&
-            allowedSignupDomains.length > 0 &&
-            !allowedSignupDomains.includes(domain)
-          ) {
+          if (!result.allowed) {
             throw new APIError("UNPROCESSABLE_ENTITY", {
-              message: `Sign up is only available for ${allowedSignupDomains.filter((d) => d !== "*").join(", ")} domains.`,
+              message: result.message,
             })
           }
         },

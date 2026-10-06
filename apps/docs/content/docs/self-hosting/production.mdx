@@ -67,6 +67,33 @@ Without them, self-hosted instances still work, but capture submission protectio
 
 `CAPTURE_SUBMIT_TOKEN_SECRET` can be set on its own. The setup wizard auto-generates it even if Redis and Turnstile are left disabled.
 
+## Signup Restriction
+
+Optional. Restrict who can create an account (email/password, magic link/OTP, and OAuth such as Google):
+
+```bash
+ALLOWED_SIGNUP_DOMAINS
+ALLOWED_SIGNUP_EMAILS
+```
+
+Rules:
+
+- `ALLOWED_SIGNUP_DOMAINS` is a comma-delimited list of email domains. Use `*` to allow every domain.
+- `ALLOWED_SIGNUP_EMAILS` is a comma-delimited list of exact email addresses. Matching is case-insensitive and trims whitespace.
+- An email may sign up if it matches **either** list.
+- If both variables are unset, anyone can sign up (the upstream default).
+- Existing accounts can still sign in even if they are not on the lists.
+- A pending organization invitation for that exact email also allows signup, so invited members can create an account.
+
+Example (lock public signup, allow two people):
+
+```bash
+ALLOWED_SIGNUP_DOMAINS=
+ALLOWED_SIGNUP_EMAILS=alice@example.com,bob@example.com
+```
+
+Do not keep `ALLOWED_SIGNUP_DOMAINS=*` if you want the email allowlist to be exclusive.
+
 ## Built-In Caddy Production Setup
 
 This repo includes a production reverse proxy layer at `docker-compose.caddy.yml`.
