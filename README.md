@@ -69,7 +69,7 @@ for turning Crikket into a QA tool whose reports are consumed by AI coding
 agents (MCP, webhooks, API keys, agent-ready packages — tracked in Linear).
 
 - Purpose, attribution, `main` / `teixeirah/kod-XXX` branches, upstream sync,
-  conflict rules, and AGPL notes: **[FORK.md](./FORK.md)**
+  conflict rules, Coolify compose, and AGPL notes: **[FORK.md](./FORK.md)**
 - PRs must target `main` on `gustavoteixeirah/crikket`, never
   `redpangilinan/crikket`
 - Upstream project: [redpangilinan/crikket](https://github.com/redpangilinan/crikket)
@@ -97,6 +97,7 @@ Useful links:
 - [Self-hosting quick start](https://crikket.io/docs/self-hosting/quick-start)
 - [Production deployment guide](https://crikket.io/docs/self-hosting/production)
 - [Self-hosting troubleshooting](https://crikket.io/docs/self-hosting/troubleshooting)
+- Kode GT Coolify (build from this repo): [docs/self-hosting/coolify](./apps/docs/content/docs/self-hosting/coolify.mdx)
 
 ### Local development
 
