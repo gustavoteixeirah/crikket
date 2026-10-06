@@ -19,6 +19,7 @@ run_pkg_tests packages/capture-core
 run_pkg_tests packages/auth
 run_pkg_tests sdks/capture
 run_pkg_tests apps/server
+run_pkg_tests apps/extension
 
 # packages/billing tests mock the same modules (polar-payload, payments, …).
 # Running them in one process makes later files see the wrong mock.

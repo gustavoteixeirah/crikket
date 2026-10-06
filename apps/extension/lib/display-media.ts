@@ -1,26 +1,39 @@
 interface TabCaptureConstraints extends MediaTrackConstraints {
-  mandatory?: {
+  mandatory: {
     chromeMediaSource: "tab"
     chromeMediaSourceId: string
   }
 }
 
-export const requestTabCaptureStream = async (
+function tabCaptureTrackConstraints(streamId: string): TabCaptureConstraints {
+  return {
+    mandatory: {
+      chromeMediaSource: "tab",
+      chromeMediaSourceId: streamId,
+    },
+  }
+}
+
+export async function requestTabCaptureStream(
   tabId: number
-): Promise<MediaStream> => {
+): Promise<MediaStream> {
+  try {
+    return await getTabMediaStream(tabId, true)
+  } catch {
+    return await getTabMediaStream(tabId, false)
+  }
+}
+
+async function getTabMediaStream(
+  tabId: number,
+  withAudio: boolean
+): Promise<MediaStream> {
   const streamId = await chrome.tabCapture.getMediaStreamId({
     targetTabId: tabId,
   })
 
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: {
-      mandatory: {
-        chromeMediaSource: "tab",
-        chromeMediaSourceId: streamId,
-      },
-    } as TabCaptureConstraints,
-  })
-
-  return stream
+  return navigator.mediaDevices.getUserMedia({
+    audio: withAudio ? tabCaptureTrackConstraints(streamId) : false,
+    video: tabCaptureTrackConstraints(streamId),
+  } as MediaStreamConstraints)
 }

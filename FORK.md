@@ -144,7 +144,7 @@ branches until the sync lands.
 
 | Workflow | Runs here? |
 | --- | --- |
-| `CI` | Yes — PRs and pushes to `main` |
+| `CI` | Yes — PRs and pushes to `main`. Includes **Package extension (Load unpacked)**, which builds the Chrome MV3 zip against `VITE_APP_URL` / `VITE_SERVER_URL` (https://crikket.kodegt.com in CI) and uploads it as `crikket-extension-chrome-mv3`. |
 | `Upstream sync check` | Yes — weekly + manual. Informational only. |
 | `Publish Packages` | No — still npm-publishes `@crikket-io/capture`; gated to upstream repo |
 | `Publish Docker Images` | No — would push GHCR images from the fork; gated to upstream repo |

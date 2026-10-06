@@ -6,15 +6,18 @@ import {
   startDebuggerSession,
 } from "@/lib/bug-report-debugger/client"
 import {
+  AUDIO_CAPTURE_WARNING_STORAGE_KEY,
   CAPTURE_CONTEXT_STORAGE_KEY,
   CAPTURE_TAB_ID_STORAGE_KEY,
   type CaptureContext,
   getActiveTabContext,
+  MICROPHONE_CAPTURE_ALLOWED_STORAGE_KEY,
   RECORDER_TAB_ID_STORAGE_KEY,
   RECORDING_COUNTDOWN_ENDS_AT_STORAGE_KEY,
   RECORDING_IN_PROGRESS_STORAGE_KEY,
   RECORDING_STARTED_AT_STORAGE_KEY,
 } from "@/lib/capture-context"
+import { primeMicrophonePermission } from "@/lib/microphone"
 
 export type PopupCaptureType = "video" | "screenshot"
 
@@ -25,6 +28,7 @@ const ACTIVE_TAB_ERROR_MESSAGE =
 interface UsePopupCaptureReturn {
   isCapturing: boolean
   captureError: string | null
+  audioWarning: string | null
   pendingCaptureType: PopupCaptureType | null
   recordingCountdown: number | null
   requestCapture: (captureType: PopupCaptureType) => void
@@ -40,6 +44,7 @@ interface ActiveCaptureTab {
 export function usePopupCapture(): UsePopupCaptureReturn {
   const [isCapturing, setIsCapturing] = useState(false)
   const [captureError, setCaptureError] = useState<string | null>(null)
+  const [audioWarning, setAudioWarning] = useState<string | null>(null)
   const [recordingCountdown, setRecordingCountdown] = useState<number | null>(
     null
   )
@@ -58,6 +63,7 @@ export function usePopupCapture(): UsePopupCaptureReturn {
   const startCapture = async (captureType: PopupCaptureType) => {
     setIsCapturing(true)
     setCaptureError(null)
+    setAudioWarning(null)
 
     let debuggerSessionId: string | null = null
 
@@ -77,6 +83,13 @@ export function usePopupCapture(): UsePopupCaptureReturn {
           debuggerSessionId,
         })
       } else {
+        const microphone = await primeMicrophonePermission()
+        setAudioWarning(microphone.warning)
+        await chrome.storage.local.set({
+          [MICROPHONE_CAPTURE_ALLOWED_STORAGE_KEY]: microphone.allowed,
+          [AUDIO_CAPTURE_WARNING_STORAGE_KEY]: microphone.warning,
+        })
+
         await startVideoCapture({
           activeTab,
           captureContext,
@@ -103,6 +116,7 @@ export function usePopupCapture(): UsePopupCaptureReturn {
   return {
     isCapturing,
     captureError,
+    audioWarning,
     pendingCaptureType,
     recordingCountdown,
     requestCapture,
@@ -261,6 +275,8 @@ async function handleCaptureFailure(input: {
     RECORDING_COUNTDOWN_ENDS_AT_STORAGE_KEY,
     RECORDER_TAB_ID_STORAGE_KEY,
     RECORDING_STARTED_AT_STORAGE_KEY,
+    MICROPHONE_CAPTURE_ALLOWED_STORAGE_KEY,
+    AUDIO_CAPTURE_WARNING_STORAGE_KEY,
   ])
 
   input.setIsCapturing(false)

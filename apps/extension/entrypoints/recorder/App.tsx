@@ -80,6 +80,7 @@ function App() {
     recordedBlob,
     screenshotBlob,
     error: captureError,
+    warning: audioWarning,
     reset: resetCapture,
     setScreenshotBlob,
   } = useScreenCapture()
@@ -406,6 +407,7 @@ function App() {
 
           {state === "recording" ? (
             <RecordingStep
+              audioWarning={audioWarning}
               duration={duration}
               onStopRecording={handleStopRecording}
               stopRecordingShortcut={shortcuts.stopRecording}
