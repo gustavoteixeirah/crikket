@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PutObjectDirectUploadsAndServerSave",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject"],
+      "Resource": ["arn:aws:s3:::crikket", "arn:aws:s3:::crikket/*"]
+    },
+    {
+      "Sid": "GetObjectPresignReadAndHead",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::crikket", "arn:aws:s3:::crikket/*"]
+    },
+    {
+      "Sid": "DeleteObjectArtifactCleanup",
+      "Effect": "Allow",
+      "Action": ["s3:DeleteObject"],
+      "Resource": ["arn:aws:s3:::crikket", "arn:aws:s3:::crikket/*"]
+    }
+  ]
+}
