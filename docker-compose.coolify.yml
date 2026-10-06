@@ -12,9 +12,10 @@
 # NEXT_PUBLIC_SITE_URL / APP_URL / SERVER_URL, BETTER_AUTH_URL, and
 # CORS_ORIGINS for their own domain.
 #
-# The postgres volume is an **external** Coolify volume so Kode GT production
-# reuses existing data. Self-hosters must change `name` or remove `external`
-# (and the `name`) so Compose creates a new volume.
+# Postgres uses a host bind mount to the existing Coolify volume data dir.
+# Coolify's compose transformer drops `external: true` and rewrites named
+# volumes, so a literal host path is required to keep production data.
+# Self-hosters must change this path (or switch to a named volume).
 #
 # Upstream image-based files (`docker-compose.yml`,
 # `docker-compose.external-db.yml`) are unchanged.
@@ -74,7 +75,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-crikket}
       POSTGRES_HOST_AUTH_METHOD: ${POSTGRES_HOST_AUTH_METHOD:-trust}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /var/lib/docker/volumes/rk2h1ywgegcu9qyq45m4evoz_crikket-pg/_data:/var/lib/postgresql/data
     healthcheck:
       test:
         [
@@ -183,8 +184,3 @@ services:
         # Do not wait on web healthy: a slow/failed UI check must not block
         # /api routing. The old GHCR stack only needed web to start.
         condition: service_started
-
-volumes:
-  postgres_data:
-    name: rk2h1ywgegcu9qyq45m4evoz_crikket-pg
-    external: true

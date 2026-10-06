@@ -235,13 +235,15 @@ Fixes in this compose / web image:
 
 ### Postgres volume
 
-`docker-compose.coolify.yml` mounts an **external** volume named
-`rk2h1ywgegcu9qyq45m4evoz_crikket-pg` so Kode GT production reuses the
-existing Coolify Postgres data.
+`docker-compose.coolify.yml` bind-mounts the existing Coolify volume data
+directory:
 
-Self-hosters **must not** keep that name/`external: true` unless they already
-have a volume with that exact name. Change `name` to your volume, or remove
-both `name` and `external` so Compose creates a fresh `postgres_data` volume.
+`/var/lib/docker/volumes/rk2h1ywgegcu9qyq45m4evoz_crikket-pg/_data`
+
+Coolify's compose transformer drops `external: true` and rewrites named
+volumes to a fresh empty volume, so a literal host path is required to keep
+production data. Self-hosters **must not** keep that host path unless they
+already have data there; change it or switch to a named volume.
 
 ### Required environment variable names
 
