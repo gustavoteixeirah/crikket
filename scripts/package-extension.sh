@@ -10,7 +10,7 @@ out="${1:-$root/crikket-extension-chrome-mv3.zip}"
 if [[ ! -f "$src/manifest.json" ]]; then
   echo "error: missing $src/manifest.json" >&2
   echo "Build the extension first, for example:" >&2
-  echo "  VITE_APP_URL=https://crikket.kodegt.com VITE_SERVER_URL=https://crikket.kodegt.com bun run --filter extension build" >&2
+  echo "  VITE_APP_URL=https://crikket.kodegt.com VITE_SERVER_URL=https://crikket.kodegt.com bun run build --filter=extension" >&2
   exit 1
 fi
 

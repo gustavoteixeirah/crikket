@@ -42,7 +42,7 @@ bun install
   ### Build Extension Output
 
   ```bash
-  bun run --filter extension build
+  bun run build --filter=extension
   ```
 
   Output path:
@@ -80,7 +80,7 @@ bun install
 After extension code changes:
 
 ```bash
-bun run --filter extension build
+bun run build --filter=extension
 ```
 
 Then in `chrome://extensions`, click reload on the Crikket extension.
@@ -110,7 +110,7 @@ Build for a different deployment:
 ```bash
 VITE_APP_URL=https://your-host.example \
 VITE_SERVER_URL=https://your-host.example \
-  bun run --filter extension build
+  bun run build --filter=extension
 ```
 
 Then load `apps/extension/.output/chrome-mv3` unpacked, or zip it with:

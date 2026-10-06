@@ -80,7 +80,9 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build extension
-        run: bun run --filter extension build
+        # Turbo --filter includes workspace deps (^build). Bun's
+        # `--filter extension build` runs wxt only and misses capture-core dist/.
+        run: bun run build --filter=extension
 
       - name: Zip unpacked Chrome MV3 output
         run: bash ./scripts/package-extension.sh "$GITHUB_WORKSPACE/crikket-extension-chrome-mv3.zip"

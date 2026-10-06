@@ -43,13 +43,13 @@ You can also pass the variables inline instead of a `.env` file:
 ```bash
 VITE_APP_URL=https://crikket.kodegt.com \
 VITE_SERVER_URL=https://crikket.kodegt.com \
-  bun run --filter extension build
+  bun run build --filter=extension
 ```
 
 ## Build and load unpacked
 
 ```bash
-bun run --filter extension build
+bun run build --filter=extension
 ```
 
 Output directory:
