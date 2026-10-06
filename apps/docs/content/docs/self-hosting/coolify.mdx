@@ -49,6 +49,7 @@ not assign a Coolify domain to `web` or `server`.**
 | Path | Upstream |
 | --- | --- |
 | `/api/*`, `/rpc/*` | `server:3000` (Hono) |
+| `/mcp`, `/mcp/*` | `server:3000` (Hono, unbuffered Streamable HTTP) |
 | everything else | `server:3001` (Next.js in the server network namespace) |
 
 Do not expose Postgres (`5432`) on the proxy.
