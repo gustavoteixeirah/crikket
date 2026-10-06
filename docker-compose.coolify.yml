@@ -155,9 +155,9 @@ services:
       VITE_SERVER_URL: ${VITE_SERVER_URL:-}
     healthcheck:
       # 127.0.0.1: Next starts with --hostname 0.0.0.0 (IPv4 only); localhost
-      # in Alpine often resolves to ::1 and the fetch is refused.
-      # /login is a public 200. Unauthenticated GET / 307s to /login and may
-      # follow to the public hostname before proxy is up. Accept 2xx/3xx.
+      # in Alpine often resolves to ::1 first. /login is a static 200.
+      # GET / is a protected RSC that calls get-session at the public origin
+      # and 500s while proxy is down (deadlock). Accept 2xx/3xx.
       test:
         [
           "CMD",

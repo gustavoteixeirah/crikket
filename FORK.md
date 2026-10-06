@@ -207,19 +207,22 @@ unhealthy** while Postgres, migrate, and server were fine. `proxy` waited on
 
 Fixes in this compose / web image:
 
-1. **IPv4 bind vs `localhost`.** Next is started with `--hostname 0.0.0.0`
-   (IPv4 only). In Alpine, `localhost` often resolves to `::1` first, so
-   `fetch('http://localhost:3001')` is connection-refused. Healthchecks use
-   `http://127.0.0.1`. Unauthenticated `GET /` 307s to `/login` and can
-   follow to the public hostname before proxy is up (circular). The web
-   check hits `/login` and treats HTTP 2xx/3xx as healthy (`redirect:
-   manual`). Server checks `GET /` on `127.0.0.1:3000` the same way.
+1. **Healthcheck path `/` is a deadlock.** `/` is a protected RSC that
+   calls `authClient.getSession()` at `NEXT_PUBLIC_SERVER_URL` (the public
+   origin). That fetch fails while `proxy` is not up, so Next returns
+   **500** and `response.ok` is false — `proxy` never starts. `/login` is
+   static and returns 200 without the API. The web check uses
+   `http://127.0.0.1:3001/login` and treats 2xx/3xx as healthy
+   (`redirect: manual`). Alpine bun resolves `localhost` to `::1` first;
+   Next binds `--hostname 0.0.0.0` (IPv4 only), so healthchecks use
+   `127.0.0.1` (server `GET /` on `:3000` the same way).
 2. **Empty `NEXT_PUBLIC_*` at runtime.** `apps/web/docker-entrypoint.sh`
    exits if `NEXT_PUBLIC_SITE_URL` / `APP_URL` / `SERVER_URL` are empty.
-   Compose used `${VAR:-}` (empty default). The old GHCR stack baked
-   `https://crikket.kodegt.com` into the image. Compose now defaults those
-   three, plus `BETTER_AUTH_URL` and `CORS_ORIGINS`, to that public origin
-   (not a secret). Self-hosters must override.
+   Compose used `${VAR:-}` (empty string), which overrides image ENV and
+   crash-loops web. The old GHCR stack baked `https://crikket.kodegt.com`.
+   Compose now defaults those three, plus `BETTER_AUTH_URL` and
+   `CORS_ORIGINS`, to that public origin (not a secret). Self-hosters must
+   override.
 3. **Slow first start.** The web Dockerfile drops `.next/cache` before
    copying `.next-template`, and the entrypoint skips `cache/` when
    grepping placeholders. Web healthcheck `start_period` is 180s (server
