@@ -16,6 +16,7 @@ run_pkg_tests() {
 # These packages do not share conflicting mock.module specifiers across files.
 run_pkg_tests packages/bug-reports
 run_pkg_tests packages/capture-core
+run_pkg_tests packages/auth
 run_pkg_tests sdks/capture
 run_pkg_tests apps/server
 

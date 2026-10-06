@@ -2,6 +2,15 @@ import "dotenv/config"
 import { createEnv } from "@t3-oss/env-core"
 import { z } from "zod"
 
+function parseCommaSeparatedList(value: string | undefined): string[] {
+  return (
+    value
+      ?.split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0) ?? []
+  )
+}
+
 export const env = createEnv({
   server: {
     DATABASE_URL: z.string().min(1),
@@ -11,13 +20,11 @@ export const env = createEnv({
     ALLOWED_SIGNUP_DOMAINS: z
       .string()
       .optional()
-      .transform(
-        (value) =>
-          value
-            ?.split(",")
-            .map((d) => d.trim())
-            .filter((d) => d.length > 0) ?? []
-      ),
+      .transform((value) => parseCommaSeparatedList(value)),
+    ALLOWED_SIGNUP_EMAILS: z
+      .string()
+      .optional()
+      .transform((value) => parseCommaSeparatedList(value)),
     POLAR_ACCESS_TOKEN: z.string().min(1).optional(),
     POLAR_SUCCESS_URL: z.url().optional(),
     POLAR_WEBHOOK_SECRET: z.string().min(1).optional(),
@@ -28,13 +35,7 @@ export const env = createEnv({
     CORS_ORIGINS: z
       .string()
       .optional()
-      .transform(
-        (value) =>
-          value
-            ?.split(",")
-            .map((origin) => origin.trim())
-            .filter((origin) => origin.length > 0) ?? []
-      ),
+      .transform((value) => parseCommaSeparatedList(value)),
     RESEND_API_KEY: z.string().min(1).optional(),
     RESEND_FROM_EMAIL: z.email().optional(),
     ENABLE_PAYMENTS: z

@@ -31,6 +31,8 @@ CORS_ORIGINS
 BETTER_AUTH_COOKIE_DOMAIN (optional; set it if you want root-domain cookies)
 ```
 
+If new users cannot register, check `ALLOWED_SIGNUP_DOMAINS` and `ALLOWED_SIGNUP_EMAILS` in `apps/server/.env`. Existing accounts can still sign in when those lists are set.
+
 ### Database Connection Errors
 
 - Check `DATABASE_URL` credentials and host
