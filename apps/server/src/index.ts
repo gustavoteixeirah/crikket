@@ -24,7 +24,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { logger } from "hono/logger"
-import { handleReportContextRequest } from "./api-v1/report-context-route"
+import { handleApiV1Request } from "./api-v1/router"
 import { handleCaptureFinalize } from "./capture/finalize-route"
 import { handleCaptureToken } from "./capture/token-route"
 import { handleCaptureUploadSession } from "./capture/upload-session-route"
@@ -172,16 +172,46 @@ app.on(["POST", "GET", "DELETE"], "/mcp", (c) => {
     request: c.req.raw,
   })
 })
-app.get("/api/v1/reports/:id/context", (c) => {
-  return handleReportContextRequest({
+
+function handleOrganizationApiV1(c: { req: { raw: Request } }) {
+  return handleApiV1Request({
     authenticate: (token) =>
       authenticateOrganizationApiKey(token, drizzleOrganizationApiKeyStore),
-    format: c.req.query("format"),
-    reportId: c.req.param("id"),
+    rateLimit: evaluateRpcRateLimit,
     request: c.req.raw,
     store: drizzleAgentReportStore,
   })
-})
+}
+
+app.on(["GET", "OPTIONS"], "/api/v1/openapi.json", handleOrganizationApiV1)
+app.on(["GET", "OPTIONS"], "/api/v1/reports", handleOrganizationApiV1)
+app.on(["GET", "OPTIONS"], "/api/v1/reports/:id", handleOrganizationApiV1)
+app.on(
+  ["GET", "OPTIONS"],
+  "/api/v1/reports/:id/context",
+  handleOrganizationApiV1
+)
+app.on(
+  ["GET", "OPTIONS"],
+  "/api/v1/reports/:id/events",
+  handleOrganizationApiV1
+)
+app.on(
+  ["GET", "OPTIONS"],
+  "/api/v1/reports/:id/artifacts",
+  handleOrganizationApiV1
+)
+app.on(
+  ["GET", "OPTIONS"],
+  "/api/v1/reports/:id/download",
+  handleOrganizationApiV1
+)
+app.on(
+  ["GET", "OPTIONS"],
+  "/api/v1/reports/:id/network/:requestId",
+  handleOrganizationApiV1
+)
+app.on(["GET", "OPTIONS"], "/api/v1/*", handleOrganizationApiV1)
 
 const cleanupInterval = setInterval(() => {
   runArtifactCleanupPass({ limit: 50 }).catch((error: unknown) => {
