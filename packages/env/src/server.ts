@@ -61,6 +61,7 @@ export const env = createEnv({
       .default("false")
       .transform((value) => value === "true"),
     WEBHOOK_APP_BASE_URL: z.url().optional(),
+    ORG_SECRETS_ENCRYPTION_KEY: z.string().min(1).optional(),
     NODE_ENV: z
       .enum(["development", "production", "staging"])
       .default("development"),

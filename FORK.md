@@ -25,6 +25,7 @@ Landed:
 - One-call agent context package (`get_report_context` and
   `GET /api/v1/reports/:id/context`)
 - Per-user preferred/default organization (web switcher + extension submit target)
+- Optional OpenAI speech-to-text for report video audio (org BYOK)
 
 Upcoming work (separate tickets) includes:
 
@@ -281,7 +282,11 @@ Optional server: `ALLOWED_SIGNUP_DOMAINS`, `ALLOWED_SIGNUP_EMAILS`, `BETTER_AUTH
 `STORAGE_PUBLIC_URL`, `ENABLE_PAYMENTS` (self-host: `false`), `RESEND_*`,
 `GOOGLE_CLIENT_*`, `POLAR_*`, `CAPTURE_SUBMIT_TOKEN_SECRET`,
 `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `TURNSTILE_SITE_KEY`,
-`TURNSTILE_SECRET_KEY`, `WEBHOOK_ALLOW_PRIVATE_URLS`, `WEBHOOK_APP_BASE_URL`.
+`TURNSTILE_SECRET_KEY`, `WEBHOOK_ALLOW_PRIVATE_URLS`, `WEBHOOK_APP_BASE_URL`,
+`ORG_SECRETS_ENCRYPTION_KEY` (32-byte base64; generate with
+`openssl rand -base64 32`; required only when an org saves a transcription
+API key. The OpenAI key itself is never an env var — admins enter it in
+**Settings → Transcription**).
 
 **Bundled Postgres service** (only if you use the `postgres` container, not
 Aurora): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
@@ -422,8 +427,8 @@ Local server: replace the URL with `http://localhost:3000/mcp` (or your
 | Tool | Purpose |
 | --- | --- |
 | `list_reports` | Paginated org reports. Filters: `status`, `createdAfter`, `createdBefore`, `search`. |
-| `get_report` | Detail: title, description, URL, browser/OS/viewport, timestamps, reporter, truncated steps/logs/network, ingestion metadata. |
-| `get_report_context` | One-call agent package: metadata, nullable transcript, merged timeline with errors highlighted and omitted counts, 15-minute signed media URLs, plus paste-ready `markdown`. |
+| `get_report` | Detail: title, description, URL, browser/OS/viewport, timestamps, reporter, truncated steps/logs/network, ingestion metadata, transcript summary. |
+| `get_report_context` | One-call agent package: metadata, `transcript` text plus `transcriptMeta` (status, segments, model), merged timeline with errors highlighted and omitted counts, 15-minute signed media URLs, plus paste-ready `markdown`. |
 | `list_report_events` | Page further (`kind`: `actions` \| `logs` \| `network`). |
 | `get_network_request` | Headers and bodies for one network request. |
 | `get_report_artifacts` | Short-lived signed URLs for video and screenshot (15 minutes). |
@@ -433,7 +438,11 @@ the first page of events. If `pagination.hasNextPage` is true, call
 `list_report_events`. Artifact URLs are not included in list or `get_report`
 payloads; use `get_report_artifacts` or `get_report_context`.
 
-`transcript` is always `null` until KOD-274 (session transcription) ships.
+`transcript` is the speech text when transcription completed; otherwise `null`.
+`transcriptMeta` has status, language, model, error, timestamps, and segments.
+Admins enable this in **Settings → Transcription** after setting
+`ORG_SECRETS_ENCRYPTION_KEY` on the server. Webhooks also emit
+`transcript.ready` (see [Outbound Webhooks](./apps/docs/content/docs/self-hosting/webhooks.mdx)).
 
 ### REST: agent context package
 

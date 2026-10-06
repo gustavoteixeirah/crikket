@@ -6,6 +6,7 @@ import {
   AgentReportNotFoundError,
   type AgentReportRecord,
   type AgentReportStore,
+  type AgentReportTranscript,
   belongsToOrganization,
   getReportArtifactsForOrganization,
   parseDeviceInfo,
@@ -76,6 +77,7 @@ export type AgentReportContext = {
   timeline: AgentContextTimelineEvent[]
   title: string
   transcript: string | null
+  transcriptMeta: AgentReportTranscript | null
   updatedAt: string
   url: string | null
   visibility: string
@@ -266,6 +268,53 @@ function formatTimelineMarkdownLine(event: AgentContextTimelineEvent): string {
   return `- \`${event.timestamp}\`${formatOffsetSuffix(event.offset)}${marker} ${event.kind} ${event.summary}`
 }
 
+function formatTranscriptMarkdown(
+  transcript: string | null,
+  transcriptMeta: AgentReportTranscript | null
+): string[] {
+  if (!(transcriptMeta || transcript)) {
+    return ["No transcript is available yet."]
+  }
+
+  const lines: string[] = []
+  if (transcriptMeta) {
+    const details = [
+      `Status: ${transcriptMeta.status}`,
+      transcriptMeta.model ? `Model: ${transcriptMeta.model}` : null,
+      transcriptMeta.language ? `Language: ${transcriptMeta.language}` : null,
+    ].filter((line): line is string => line !== null)
+    lines.push(details.join(" · "))
+    if (transcriptMeta.error) {
+      lines.push("")
+      lines.push(`Error: ${transcriptMeta.error}`)
+    }
+    lines.push("")
+  }
+
+  const text = transcript?.trim() || transcriptMeta?.text?.trim()
+  lines.push(text || "No transcript text is available yet.")
+
+  if (transcriptMeta && transcriptMeta.segments.length > 0) {
+    lines.push("")
+    lines.push("### Segments")
+    lines.push("")
+    for (const segment of transcriptMeta.segments) {
+      lines.push(
+        `- \`${formatTranscriptClock(segment.start)}–${formatTranscriptClock(segment.end)}\` ${segment.text}`
+      )
+    }
+  }
+
+  return lines
+}
+
+function formatTranscriptClock(seconds: number): string {
+  const clamped = Math.max(0, seconds)
+  const minutes = Math.floor(clamped / 60)
+  const remainder = clamped - minutes * 60
+  return `${String(minutes).padStart(2, "0")}:${remainder.toFixed(2).padStart(5, "0")}`
+}
+
 function formatOmittedMarkdown(omitted: AgentContextOmitted): string | null {
   const parts: string[] = []
   if (omitted.actions > 0) {
@@ -325,8 +374,10 @@ export function formatReportContextMarkdown(
   ].filter((line): line is string => line !== null)
 
   const description = context.description?.trim() || "No description provided."
-  const transcript =
-    context.transcript?.trim() || "No transcript is available yet."
+  const transcriptLines = formatTranscriptMarkdown(
+    context.transcript,
+    context.transcriptMeta
+  )
   const omitted = formatOmittedMarkdown(context.omitted)
   const timelineLines =
     context.timeline.length > 0
@@ -348,7 +399,7 @@ export function formatReportContextMarkdown(
     "",
     "## Transcript",
     "",
-    transcript,
+    ...transcriptLines,
     "",
     ...formatMediaMarkdown(context.media),
     "",
@@ -395,7 +446,7 @@ export async function getReportContextForOrganization(
     AGENT_CONTEXT_NETWORK_LIMIT
   )
 
-  const [actions, logs, network, media] = await Promise.all([
+  const [actions, logs, network, media, transcriptMeta] = await Promise.all([
     store.listActions({
       ...actionWindow,
       organizationId: input.organizationId,
@@ -412,6 +463,7 @@ export async function getReportContextForOrganization(
       reportId: input.reportId,
     }),
     getReportArtifactsForOrganization(input, store),
+    store.findTranscript(input),
   ])
 
   const timeline = mergeContextTimeline(actions, logs, network)
@@ -445,7 +497,9 @@ export async function getReportContextForOrganization(
     tags: Array.isArray(report.tags) ? report.tags : [],
     timeline,
     title: report.title || "Untitled Bug Report",
-    transcript: null,
+    transcript:
+      transcriptMeta?.status === "completed" ? transcriptMeta.text : null,
+    transcriptMeta,
     updatedAt: report.updatedAt.toISOString(),
     url: report.url,
     visibility: report.visibility,

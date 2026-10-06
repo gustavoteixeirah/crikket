@@ -79,6 +79,9 @@ function createStore(input: {
     findNetworkRequest() {
       return Promise.resolve(emptyPayload)
     },
+    findTranscript() {
+      return Promise.resolve(null)
+    },
     findReport(query) {
       findReportCalls.push(query)
       return Promise.resolve(

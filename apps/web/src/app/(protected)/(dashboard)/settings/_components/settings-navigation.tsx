@@ -2,6 +2,7 @@
 
 import { cn } from "@crikket/ui/lib/utils"
 import {
+  AudioLines,
   Bot,
   Building2,
   CreditCard,
@@ -43,6 +44,12 @@ const SETTINGS_ITEMS = [
     title: "Webhooks",
     description: "Report-ready events for n8n",
     icon: Webhook,
+  },
+  {
+    href: "/settings/transcription",
+    title: "Transcription",
+    description: "OpenAI speech-to-text BYOK",
+    icon: AudioLines,
   },
   {
     href: "/settings/billing",

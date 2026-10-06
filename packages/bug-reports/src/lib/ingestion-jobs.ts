@@ -19,6 +19,7 @@ import {
   resolveBugReportIngestionFailureStatus,
 } from "./ingestion-policy"
 import { getStorageProvider } from "./storage"
+import { enqueueTranscriptionForReadyReportSafe } from "./transcription/jobs"
 import { enqueueReportReadyWebhookSafe } from "./webhooks/delivery"
 
 const BUG_REPORT_INGESTION_JOB_TYPE = "debugger_ingestion"
@@ -201,6 +202,10 @@ export async function processBugReportIngestionJob(
 
     await markBugReportIngestionJobCompleted(claimedJob.jobId)
     await enqueueReportReadyWebhookSafe({
+      bugReportId: report.id,
+      organizationId: report.organizationId,
+    })
+    await enqueueTranscriptionForReadyReportSafe({
       bugReportId: report.id,
       organizationId: report.organizationId,
     })

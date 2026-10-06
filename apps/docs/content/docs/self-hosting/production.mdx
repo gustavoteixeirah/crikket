@@ -30,6 +30,13 @@ WEBHOOK_ALLOW_PRIVATE_URLS (false)
 WEBHOOK_APP_BASE_URL
 ```
 
+Optional transcription at rest (`ORG_SECRETS_ENCRYPTION_KEY` only — never put
+an OpenAI API key in env). See [Transcription](/docs/self-hosting/transcription):
+
+```bash
+ORG_SECRETS_ENCRYPTION_KEY
+```
+
 Set these in `apps/web/.env`:
 
 ```bash

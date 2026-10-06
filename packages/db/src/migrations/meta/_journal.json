@@ -29,6 +29,13 @@
       "when": 1791257099635,
       "tag": "0003_lonely_iron_fist",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791258385704,
+      "tag": "0004_ordinary_strong_guy",
+      "breakpoints": true
     }
   ]
 }

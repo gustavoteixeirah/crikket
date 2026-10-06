@@ -1,7 +1,13 @@
+import { Badge } from "@crikket/ui/components/ui/badge"
+import { Button } from "@crikket/ui/components/ui/button"
 import { Separator } from "@crikket/ui/components/ui/separator"
 import { cn } from "@crikket/ui/lib/utils"
+import { useMutation } from "@tanstack/react-query"
 import { Globe, Info, MousePointerClick, Terminal } from "lucide-react"
 import type { ReactNode } from "react"
+import { toast } from "sonner"
+
+import { client, queryClient } from "@/utils/orpc"
 
 import { NetworkRequestsPanel } from "./network-requests-panel"
 import { ReproductionStepsList } from "./reproduction-steps-list"
@@ -130,6 +136,8 @@ export function BugReportSidebar({
                 </div>
               </div>
             </div>
+            <Separator />
+            <TranscriptSection data={data} />
           </div>
         )}
 
@@ -198,6 +206,85 @@ function TabButton({
       {icon}
       {label}
     </button>
+  )
+}
+
+function TranscriptSection({ data }: { data: SharedBugReport }) {
+  const transcript = data.transcript
+  const retryMutation = useMutation({
+    mutationFn: async () =>
+      client.bugReport.retryTranscription({ id: data.id }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries()
+      toast.success("Transcription queued")
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to retry transcription")
+    },
+  })
+
+  const showRetry =
+    data.canEdit &&
+    data.attachmentType === "video" &&
+    (!transcript ||
+      transcript.status === "failed" ||
+      transcript.status === "skipped")
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+          Transcript
+        </h3>
+        {transcript ? (
+          <Badge
+            variant={
+              transcript.status === "completed"
+                ? "default"
+                : transcript.status === "failed" ||
+                    transcript.status === "skipped"
+                  ? "destructive"
+                  : "secondary"
+            }
+          >
+            {transcript.status}
+          </Badge>
+        ) : (
+          <Badge variant="secondary">none</Badge>
+        )}
+      </div>
+      {transcript?.error ? (
+        <p className="text-destructive text-xs">{transcript.error}</p>
+      ) : null}
+      <p className="whitespace-pre-wrap rounded-md border bg-muted/30 p-2 text-foreground text-sm leading-relaxed">
+        {transcript?.text || "No transcript is available yet."}
+      </p>
+      {transcript && transcript.segments.length > 0 ? (
+        <ol className="space-y-1 text-xs">
+          {transcript.segments.map((segment) => (
+            <li key={`${segment.start}-${segment.end}-${segment.text}`}>
+              <span className="font-mono text-muted-foreground">
+                {segment.start.toFixed(1)}–{segment.end.toFixed(1)}
+              </span>{" "}
+              {segment.text}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      {showRetry ? (
+        <Button
+          disabled={retryMutation.isPending}
+          onClick={() => {
+            retryMutation.mutate()
+          }}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Retry transcription
+        </Button>
+      ) : null}
+    </div>
   )
 }
 
