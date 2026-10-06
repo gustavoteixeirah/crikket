@@ -47,6 +47,10 @@ export type AgentContextTimelineEvent = {
 
 export type AgentReportContext = {
   createdAt: string
+  cursorAgent: {
+    id: string | null
+    url: string | null
+  } | null
   description: string | null
   environment: {
     browser?: string
@@ -60,6 +64,11 @@ export type AgentReportContext = {
     debuggerIngestionStatus: string
     submissionStatus: string
   }
+  linear: {
+    identifier: string | null
+    issueId: string | null
+    url: string | null
+  } | null
   markdown: string
   media: AgentReportArtifacts
   omitted: AgentContextOmitted
@@ -367,6 +376,12 @@ export function formatReportContextMarkdown(
     metadataLine("Viewport", environment?.viewport),
     metadataLine("Created", context.createdAt),
     metadataLine("Updated", context.updatedAt),
+    metadataLine("Linear", context.linear?.url),
+    metadataLine(
+      "Linear issue",
+      context.linear?.identifier ?? context.linear?.issueId
+    ),
+    metadataLine("Cursor agent", context.cursorAgent?.url),
     metadataLine(
       "Tags",
       context.tags.length > 0 ? context.tags.join(", ") : null
@@ -475,6 +490,12 @@ export async function getReportContextForOrganization(
 
   const context = {
     createdAt: report.createdAt.toISOString(),
+    cursorAgent: report.cursorAgentUrl
+      ? {
+          id: report.cursorAgentId,
+          url: report.cursorAgentUrl,
+        }
+      : null,
     description: report.description,
     environment: parseDeviceInfo(report.deviceInfo),
     id: report.id,
@@ -484,6 +505,13 @@ export async function getReportContextForOrganization(
       debuggerIngestionStatus: report.debuggerIngestionStatus,
       submissionStatus: report.submissionStatus,
     },
+    linear: report.linearIssueUrl
+      ? {
+          identifier: report.linearIssueIdentifier,
+          issueId: report.linearIssueId,
+          url: report.linearIssueUrl,
+        }
+      : null,
     media,
     omitted,
     organization: {

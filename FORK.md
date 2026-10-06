@@ -26,6 +26,7 @@ Landed:
   `GET /api/v1/reports/:id/context`)
 - Per-user preferred/default organization (web switcher + extension submit target)
 - Optional OpenAI speech-to-text for report video audio (org BYOK)
+- Linear issue + Cursor cloud agent handoff when a report is ready (KOD-282)
 
 Upcoming work (separate tickets) includes:
 
@@ -286,9 +287,9 @@ Optional server: `ALLOWED_SIGNUP_DOMAINS`, `ALLOWED_SIGNUP_EMAILS`, `BETTER_AUTH
 `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `TURNSTILE_SITE_KEY`,
 `TURNSTILE_SECRET_KEY`, `WEBHOOK_ALLOW_PRIVATE_URLS`, `WEBHOOK_APP_BASE_URL`,
 `ORG_SECRETS_ENCRYPTION_KEY` (32-byte base64; generate with
-`openssl rand -base64 32`; required only when an org saves a transcription
-API key. The OpenAI key itself is never an env var — admins enter it in
-**Settings → Transcription**).
+`openssl rand -base64 32`; required when an org saves a transcription, Linear,
+or Cursor API key. Those keys are never env vars — admins enter them in
+**Settings → Transcription** and **Settings → Linear**).
 
 **Bundled Postgres service** (only if you use the `postgres` container, not
 Aurora): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
@@ -619,8 +620,8 @@ Local server: replace the URL with `http://localhost:3000/mcp` (or your
 | Tool | Purpose |
 | --- | --- |
 | `list_reports` | Paginated org reports. Filters: `status`, `createdAfter`, `createdBefore`, `search`. |
-| `get_report` | Detail: title, description, URL, browser/OS/viewport, timestamps, reporter, truncated steps/logs/network, ingestion metadata, transcript summary. |
-| `get_report_context` | One-call agent package: metadata, `transcript` text plus `transcriptMeta` (status, segments, model), merged timeline with errors highlighted and omitted counts, 15-minute signed media URLs, plus paste-ready `markdown`. |
+| `get_report` | Detail: title, description, URL, browser/OS/viewport, timestamps, reporter, truncated steps/logs/network, ingestion metadata, transcript summary, Linear issue and Cursor agent links. |
+| `get_report_context` | One-call agent package: metadata, `transcript` text plus `transcriptMeta` (status, segments, model), Linear/Cursor links, merged timeline with errors highlighted and omitted counts, 15-minute signed media URLs, plus paste-ready `markdown`. |
 | `list_report_events` | Page further (`kind`: `actions` \| `logs` \| `network`). |
 | `get_network_request` | Headers and bodies for one network request. |
 | `get_report_artifacts` | Short-lived signed URLs for video and screenshot (15 minutes). |
@@ -653,3 +654,55 @@ curl -sS \
 `format` is `json` (default) or `markdown`. JSON includes a `markdown` field so
 you can paste the prompt without a second call. Local server: replace the host
 with `http://localhost:3000`.
+
+JSON also includes `linear` and `cursorAgent` when this org has created a
+Linear issue or launched a Cursor cloud agent for the report.
+
+## Linear integration (KOD-282)
+
+When a report becomes `ready`, Crikket can open a Linear issue for the product
+mapped to that organization, attach the agent context package, and (optionally)
+launch a Cursor cloud agent.
+
+Linear API keys and Cursor API keys are **bring-your-own**, stored per
+organization, encrypted at rest, never returned to the client, and never
+committed. The only related environment variable is the encryption key:
+
+| Name | Required | Purpose |
+| --- | --- | --- |
+| `ORG_SECRETS_ENCRYPTION_KEY` | yes, to save Linear/Cursor keys | 32-byte standard base64 (`openssl rand -base64 32`). AES-256-GCM. Same helper as KOD-274 OpenAI keys. |
+
+Do not put Linear or Cursor tokens in Coolify as global env vars. Admins paste
+them in **Settings → Linear**.
+
+### Admin setup
+
+1. Set `ORG_SECRETS_ENCRYPTION_KEY` in Coolify (or `apps/server/.env` locally). Generate with `openssl rand -base64 32`. Restart the server.
+2. Sign in as an organization **owner** or **admin**.
+3. Open **Settings → Linear**.
+4. Paste a Linear personal/workspace API key. Save. The UI shows a masked value only (`••••••••abcd`). Use **Test Linear key**.
+5. Pick the Linear **team** (Kode GT) and **project** (the product). Optional labels. Enable **Create a Linear issue when a report is ready**.
+6. Cloud agent launch stays **off** unless you want automatic PRs. To use it: paste a Cursor API key (Dashboard → API Keys), set `https://github.com/owner/repo` and a base ref (`main`), optionally enable **Launch a Cursor cloud agent automatically**, then **Test Cursor key**.
+
+### End-to-end with a test report
+
+1. Complete admin setup with the Linear toggle **on** and cloud agent launch **off**.
+2. Capture and submit a bug report in the org (extension or existing report).
+3. Wait until ingest sets `submission_status = ready`. The server enqueues a durable `linear_handoff_job` (`create_issue`) that retries like webhooks (8 attempts, exponential backoff). Failures never fail ingest.
+4. Open the report (`/s/{id}`). The details sidebar shows the Linear identifier/link. MCP `get_report` / `get_report_context` and `GET /api/v1/reports/:id/context` include the same `linear` object.
+5. The Linear issue body has the (truncated) Markdown context package, links back to the report and `/api/v1/reports/:id/context`, plus a **Cloud agent handoff** section (repo, suggested `cursor/crikket-…` branch, compact agent prompt, MCP `mcp.json`).
+6. Click **Launch agent** on the report (or turn the org toggle on for the next report). Crikket calls `POST https://api.cursor.com/v1/agents` and posts the agent URL as a Linear comment.
+
+Manual **Create Linear issue** works even when the auto toggle is off, as long as a key and team are saved.
+
+### Simulated `report.ready` (mocked Linear, CI-safe)
+
+This does **not** call Linear or Cursor. It runs the same packaging + HTTP client path used after ingest:
+
+```bash
+bun test --cwd packages/bug-reports test/linear-pipeline.test.ts test/linear-handoff.test.ts
+bun run scripts/simulate-linear-handoff.ts
+```
+
+The script prints a mocked `KOD-999` issue identifier, the description preview, idempotency (`created: false` on the second call), and a mocked Cursor agent URL + Linear comment.
+

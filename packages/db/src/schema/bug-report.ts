@@ -46,6 +46,11 @@ export const bugReport = pgTable(
     visibility: text("visibility").default("private").notNull(), // public | private
     metadata: jsonb("metadata"),
     deviceInfo: jsonb("device_info"), // browser, os, viewport, etc.
+    linearIssueId: text("linear_issue_id"),
+    linearIssueIdentifier: text("linear_issue_identifier"),
+    linearIssueUrl: text("linear_issue_url"),
+    cursorAgentId: text("cursor_agent_id"),
+    cursorAgentUrl: text("cursor_agent_url"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
