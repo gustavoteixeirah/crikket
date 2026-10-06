@@ -72,7 +72,13 @@ export function SignInForm() {
       }
 
       toast.success("Signed in successfully.")
-      router.push("/")
+      try {
+        const parsed = new URL(callbackURL)
+        const nextPath = `${parsed.pathname}${parsed.search}${parsed.hash}`
+        router.push((nextPath.length > 0 ? nextPath : "/") as never)
+      } catch {
+        router.push("/")
+      }
     },
   })
 

@@ -235,6 +235,9 @@ export const auth = betterAuth({
         beforeCreateInvitation: async ({ invitation }) => {
           await assertOrganizationCanAddMembers(invitation.organizationId)
         },
+        beforeAddMember: async ({ organization }) => {
+          await assertOrganizationCanAddMembers(organization.id)
+        },
       },
     }),
     emailOTP({

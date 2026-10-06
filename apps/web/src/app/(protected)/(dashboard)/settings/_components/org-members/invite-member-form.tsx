@@ -17,7 +17,13 @@ import { formatRoleLabel } from "./role-labels"
 
 interface InviteMemberFormProps {
   canInviteMembers: boolean
+  invitationEmailEnabled: boolean
+  isAddingExisting: boolean
   isInviting: boolean
+  onAddExistingMember: (input: {
+    email: string
+    role: "admin" | "member"
+  }) => Promise<void>
   onInviteMember: (input: {
     email: string
     role: "admin" | "member"
@@ -26,7 +32,10 @@ interface InviteMemberFormProps {
 
 export function InviteMemberForm({
   canInviteMembers,
+  invitationEmailEnabled,
+  isAddingExisting,
   isInviting,
+  onAddExistingMember,
   onInviteMember,
 }: InviteMemberFormProps) {
   const form = useForm({
@@ -45,6 +54,8 @@ export function InviteMemberForm({
       form.reset()
     },
   })
+
+  const isBusy = isInviting || isAddingExisting || form.state.isSubmitting
 
   return (
     <form
@@ -67,7 +78,7 @@ export function InviteMemberForm({
                 <Input
                   aria-invalid={isInvalid}
                   autoComplete="email"
-                  disabled={!canInviteMembers || isInviting}
+                  disabled={!canInviteMembers || isBusy}
                   id={field.name}
                   name={field.name}
                   onBlur={field.handleBlur}
@@ -88,7 +99,7 @@ export function InviteMemberForm({
             <Field className="space-y-1">
               <FieldLabel htmlFor={field.name}>Role</FieldLabel>
               <Select
-                disabled={!canInviteMembers || isInviting}
+                disabled={!canInviteMembers || isBusy}
                 onValueChange={(value) =>
                   field.handleChange(value as "admin" | "member")
                 }
@@ -109,13 +120,37 @@ export function InviteMemberForm({
         </form.Field>
       </div>
 
-      <Button
-        className="w-fit"
-        disabled={!canInviteMembers || isInviting || form.state.isSubmitting}
-        type="submit"
-      >
-        {isInviting || form.state.isSubmitting ? "Inviting..." : "Send invite"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          className="w-fit"
+          disabled={!canInviteMembers || isBusy}
+          type="submit"
+        >
+          {isInviting || form.state.isSubmitting
+            ? "Creating invite..."
+            : invitationEmailEnabled
+              ? "Send invite"
+              : "Create invite"}
+        </Button>
+        <Button
+          className="w-fit"
+          disabled={!canInviteMembers || isBusy}
+          onClick={async () => {
+            const parsed = inviteMemberFormSchema.safeParse(form.state.values)
+            if (!parsed.success) {
+              await form.validateAllFields("submit")
+              return
+            }
+
+            await onAddExistingMember(parsed.data)
+            form.reset()
+          }}
+          type="button"
+          variant="outline"
+        >
+          {isAddingExisting ? "Adding member..." : "Add existing member"}
+        </Button>
+      </div>
     </form>
   )
 }

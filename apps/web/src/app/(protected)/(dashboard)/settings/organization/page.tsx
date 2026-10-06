@@ -1,4 +1,6 @@
 import { authClient } from "@crikket/auth/client"
+import { env } from "@crikket/env/web"
+import { buildOrganizationInvitationUrl } from "@crikket/shared/lib/organization-invitation"
 import {
   Card,
   CardContent,
@@ -150,6 +152,7 @@ export default async function OrganizationSettingsPage({
     { data: membersData, error: membersError },
     { data: invitationData, error: invitationError },
     billingState,
+    emailDeliveryState,
   ] = await Promise.all([
     authClient.organization.getActiveMemberRole({
       query: {
@@ -165,6 +168,16 @@ export default async function OrganizationSettingsPage({
       ...authFetchOptions,
     }),
     billingPromise,
+    client.auth
+      .getAuthEmailDeliveryStatus()
+      .then((data) => ({
+        data,
+        error: null,
+      }))
+      .catch((error) => ({
+        data: null,
+        error,
+      })),
   ])
   const currentBillingPlan = billingState.data?.plan ?? "free"
   const memberCap = billingState.data?.entitlements.memberCap ?? null
@@ -188,6 +201,10 @@ export default async function OrganizationSettingsPage({
       status: invitation.status,
       createdAt: toIsoString(invitation.createdAt),
       expiresAt: toIsoString(invitation.expiresAt),
+      inviteUrl: buildOrganizationInvitationUrl(
+        env.NEXT_PUBLIC_APP_URL,
+        invitation.id
+      ),
     }))
 
   return (
@@ -221,6 +238,9 @@ export default async function OrganizationSettingsPage({
         currentPlan={currentBillingPlan}
         currentUserId={session.user.id}
         currentUserRole={memberRoleData?.role ?? "member"}
+        invitationEmailEnabled={
+          emailDeliveryState.data?.invitationEmailEnabled ?? false
+        }
         memberCap={memberCap}
         members={members}
         organizationId={activeOrganization.id}
