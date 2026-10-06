@@ -27,10 +27,10 @@ Landed:
 - Per-user preferred/default organization (web switcher + extension submit target)
 - Optional OpenAI speech-to-text for report video audio (org BYOK)
 - Linear issue + Cursor cloud agent handoff when a report is ready (KOD-282)
+- Versioned organization REST API at `/api/v1` (same org API keys)
 
 Upcoming work (separate tickets) includes:
 
-- Broader machine-readable REST API reusing organization API keys (KOD-273)
 - Fork-specific capture, storage, and access-control changes
 
 The fork exists so we can add agent integrations without publishing Kode GT
@@ -686,8 +686,8 @@ Production URL: `https://crikket.kodegt.com/mcp`
 Keys are hashed at rest (`sha256`). Revoke from the same settings page. A key
 can only list and fetch reports that belong to its organization.
 
-The same keys also authenticate a session-free REST endpoint for the agent
-context package (below). Broader REST coverage is still KOD-273.
+The same keys authenticate the versioned REST API at `/api/v1` (below) and
+MCP. Broader write/admin REST is out of scope.
 
 ## Active and default organization (KOD-278)
 
@@ -759,23 +759,62 @@ Admins enable this in **Settings → Transcription** after setting
 `ORG_SECRETS_ENCRYPTION_KEY` on the server. Webhooks also emit
 `transcript.ready` (see [Outbound Webhooks](./apps/docs/content/docs/self-hosting/webhooks.mdx)).
 
-### REST: agent context package
+### REST `/api/v1`
 
-Same org API key, no browser session.
+Same org API key (`Authorization: Bearer crik_ak_...`), no browser session.
+Caddy already routes `/api/*` to the Hono server; `/api/v1` is not handled by
+Better Auth (`/api/auth/*`).
+
+OpenAPI 3 spec (unauthenticated):
+`https://crikket.kodegt.com/api/v1/openapi.json`
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/reports` | Paginated list. Query: `status`, `createdAfter`, `createdBefore`, `search`, `page`, `perPage`. |
+| `GET` | `/api/v1/reports/:id` | Report detail (truncated events, transcript, Linear/Cursor links). |
+| `GET` | `/api/v1/reports/:id/context` | One-call agent package including transcript and Linear (`format=json\|markdown`). |
+| `GET` | `/api/v1/reports/:id/events` | Paginated events. Query: `kind=actions\|logs\|network`, `page`, `perPage`, `search`. |
+| `GET` | `/api/v1/reports/:id/network/:requestId` | Headers and bodies for one request. |
+| `GET` | `/api/v1/reports/:id/artifacts` | 15-minute signed video/screenshot URLs. |
+| `GET` | `/api/v1/reports/:id/download` | JSON export (`Content-Disposition: attachment`). `?artifact=video\|screenshot` 302s to the signed media URL. |
+
+Errors are JSON `{ "error": "...", "message": "..." }` with `401` (missing/invalid key), `403` (key cannot read), `404` (unknown or other-org report). Other organizations are indistinguishable from missing (`404`). When Upstash Redis is configured, `/api/v1` uses the same rate-limit primitive as `/rpc`.
 
 ```bash
 curl -sS \
   -H "Authorization: Bearer crik_ak_YOUR_KEY_HERE" \
-  "https://crikket.kodegt.com/api/v1/reports/REPORT_ID/context"
+  "https://crikket.kodegt.com/api/v1/reports"
 
 curl -sS \
   -H "Authorization: Bearer crik_ak_YOUR_KEY_HERE" \
   "https://crikket.kodegt.com/api/v1/reports/REPORT_ID/context?format=markdown"
+
+curl -fsS \
+  -H "Authorization: Bearer crik_ak_YOUR_KEY_HERE" \
+  -o report.json \
+  "https://crikket.kodegt.com/api/v1/reports/REPORT_ID/download"
+
+curl -fL \
+  -H "Authorization: Bearer crik_ak_YOUR_KEY_HERE" \
+  -o capture.webm \
+  "https://crikket.kodegt.com/api/v1/reports/REPORT_ID/download?artifact=video"
 ```
 
 `format` is `json` (default) or `markdown`. JSON includes a `markdown` field so
-you can paste the prompt without a second call. Local server: replace the host
-with `http://localhost:3000`.
+you can paste the prompt without a second call.
+
+`GET /api/v1/reports/:id` and `GET /api/v1/reports/:id/context` expose the same
+`transcript` / `transcriptMeta` and `linear` / `cursorAgent` fields as the MCP
+tools.
+
+Example script (reads `CRIKKET_API_KEY`; optional `CRIKKET_API_URL`):
+
+```bash
+export CRIKKET_API_KEY=crik_ak_YOUR_KEY_HERE
+./scripts/crikket-api-example.sh
+```
+
+Local server: replace the host with `http://localhost:3000`.
 
 JSON also includes `linear` and `cursorAgent` when this org has created a
 Linear issue or launched a Cursor cloud agent for the report.
@@ -827,4 +866,3 @@ bun run scripts/simulate-linear-handoff.ts
 ```
 
 The script prints a mocked `KOD-999` issue identifier, the description preview, idempotency (`created: false` on the second call), and a mocked Cursor agent URL + Linear comment.
-

@@ -6,6 +6,7 @@ import { Ratelimit } from "@upstash/ratelimit"
 import { Redis } from "@upstash/redis"
 
 const RPC_ROUTE_PREFIX = "/rpc/"
+const API_V1_ROUTE_PREFIX = "/api/v1/"
 const CLIENT_ID_FALLBACK = "anonymous"
 const RATE_LIMIT_CONFIG = {
   windowSeconds: 60,
@@ -267,7 +268,12 @@ export async function evaluateRpcRateLimit(
   }
 
   const pathname = new URL(request.url).pathname
-  if (!pathname.startsWith(RPC_ROUTE_PREFIX)) {
+  if (
+    !(
+      pathname.startsWith(RPC_ROUTE_PREFIX) ||
+      pathname.startsWith(API_V1_ROUTE_PREFIX)
+    )
+  ) {
     return { allowed: true, headers: {} }
   }
 
