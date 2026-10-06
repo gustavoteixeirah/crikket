@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   publish:
+    # Kode GT fork: never push GHCR images from gustavoteixeirah/crikket.
+    if: github.repository == 'redpangilinan/crikket'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
