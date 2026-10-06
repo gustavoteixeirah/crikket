@@ -10,11 +10,18 @@ escape_replacement() {
   printf '%s' "$1" | sed -e 's/[\\|&]/\\&/g'
 }
 
+# Skip .next/cache if it is present (webpack packfiles make grep unusable
+# on cold start). The image template is built without cache.
+list_next_files_containing() {
+  needle="$1"
+  find "$TARGET_DIR" -path "$TARGET_DIR/cache" -prune -o -type f -exec grep -l "$needle" {} + 2>/dev/null || true
+}
+
 replace_placeholder() {
   placeholder="$1"
   value="$2"
   escaped_value="$(escape_replacement "$value")"
-  files="$(grep -rl "$placeholder" "$TARGET_DIR" 2>/dev/null || true)"
+  files="$(list_next_files_containing "$placeholder")"
 
   if [ -z "$files" ]; then
     return 0
@@ -37,7 +44,7 @@ replace_runtime_env_value() {
   key="$1"
   value="$2"
   escaped_value="$(escape_replacement "$value")"
-  files="$(grep -rl "$key" "$TARGET_DIR" 2>/dev/null || true)"
+  files="$(list_next_files_containing "$key")"
 
   if [ -z "$files" ]; then
     return 0

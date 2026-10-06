@@ -200,6 +200,38 @@ without gzip so Streamable HTTP responses are not buffered.
 
 Do not publish Postgres (`5432`) on the Coolify proxy.
 
+### Web unhealthy / 503 on cutover
+
+The first Coolify cutover to `docker-compose.coolify.yml` left **web
+unhealthy** while Postgres, migrate, and server were fine. `proxy` waited on
+`web` `service_healthy`, never started, and the site returned 503.
+
+Fixes in this compose / web image:
+
+1. **Healthcheck path `/` is a deadlock.** `/` is a protected RSC that
+   calls `authClient.getSession()` at `NEXT_PUBLIC_SERVER_URL` (the public
+   origin). That fetch fails while `proxy` is not up, so Next returns
+   **500** and `response.ok` is false — `proxy` never starts. `/login` is
+   static and returns 200 without the API. The web check uses
+   `http://127.0.0.1:3001/login` and treats 2xx/3xx as healthy
+   (`redirect: manual`). Alpine bun resolves `localhost` to `::1` first;
+   Next binds `--hostname 0.0.0.0` (IPv4 only), so healthchecks use
+   `127.0.0.1` (server `GET /` on `:3000` the same way).
+2. **Empty `NEXT_PUBLIC_*` at runtime.** `apps/web/docker-entrypoint.sh`
+   exits if `NEXT_PUBLIC_SITE_URL` / `APP_URL` / `SERVER_URL` are empty.
+   Compose used `${VAR:-}` (empty string), which overrides image ENV and
+   crash-loops web. The old GHCR stack baked `https://crikket.kodegt.com`.
+   Compose now defaults those three, plus `BETTER_AUTH_URL` and
+   `CORS_ORIGINS`, to that public origin (not a secret). Self-hosters must
+   override.
+3. **Slow first start.** The web Dockerfile drops `.next/cache` before
+   copying `.next-template`, and the entrypoint skips `cache/` when
+   grepping placeholders. Web healthcheck `start_period` is 180s (server
+   60s).
+4. **`proxy` vs web health.** `proxy` depends on `web` with
+   `service_started` so a slow or failed UI healthcheck cannot block `/api`.
+   Server remains `service_healthy`.
+
 ### Postgres volume
 
 `docker-compose.coolify.yml` mounts an **external** volume named
@@ -213,14 +245,19 @@ both `name` and `external` so Compose creates a fresh `postgres_data` volume.
 ### Required environment variable names
 
 Set these in the Coolify service environment (values stay in Coolify, never
-git). No defaults that look like secrets are in the compose file.
+git). No defaults that look like secrets are in the compose file. Public
+origin defaults (`https://crikket.kodegt.com`) are Kode GT-specific;
+self-hosters must override.
 
 **Web (build args + runtime; `docker-entrypoint.sh` also substitutes
 placeholders):**
 
-- `NEXT_PUBLIC_SITE_URL`
-- `NEXT_PUBLIC_APP_URL`
-- `NEXT_PUBLIC_SERVER_URL`
+- `NEXT_PUBLIC_SITE_URL` (compose default: `https://crikket.kodegt.com`)
+- `NEXT_PUBLIC_APP_URL` (same default)
+- `NEXT_PUBLIC_SERVER_URL` (same default)
+
+Kode GT production can rely on those defaults. Still set them in Coolify if
+the service already has them.
 
 Optional web: `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`, `NEXT_PUBLIC_CRIKKET_KEY`,
 `NEXT_PUBLIC_DEMO_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`.
@@ -231,8 +268,8 @@ the Coolify images do not build the browser extension.
 
 - `DATABASE_URL`
 - `BETTER_AUTH_SECRET`
-- `BETTER_AUTH_URL`
-- `CORS_ORIGINS`
+- `BETTER_AUTH_URL` (compose default: `https://crikket.kodegt.com`)
+- `CORS_ORIGINS` (same default)
 - `STORAGE_BUCKET`
 - `STORAGE_ACCESS_KEY_ID`
 - `STORAGE_SECRET_ACCESS_KEY`
