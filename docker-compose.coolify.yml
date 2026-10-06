@@ -173,10 +173,12 @@ services:
       start_period: 180s
 
   proxy:
-    image: caddy:2.10-alpine
+    image: crikket-proxy:coolify
+    build:
+      context: .
+      dockerfile: docker/caddy/Dockerfile
+    pull_policy: never
     restart: unless-stopped
-    volumes:
-      - ./Caddyfile.coolify:/etc/caddy/Caddyfile:ro
     depends_on:
       server:
         condition: service_healthy
