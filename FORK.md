@@ -180,23 +180,27 @@ images and must not be used for this fork's production.
 
 ### Domains and ports
 
+Attach the public hostname only to the **`proxy`** service, container port
+**8080**. Coolify's proxy terminates TLS and forwards to that port. Do not
+publish host ports in the compose file, and do not set `container_name`
+(Coolify assigns names).
+
 `web` uses `network_mode: service:server`, so it has **no own IP**. Do not
-attach a Coolify domain to the `web` service.
+attach a Coolify domain to `web` or `server`. `Caddyfile.coolify` sends
+`/api/*` and `/rpc/*` to `server:3000` and everything else to `server:3001`
+(the Next.js process listening in the server network namespace).
 
-Attach domains only to **`server`**:
+Do not publish Postgres (`5432`) on the Coolify proxy.
 
-| Public site | Container port | Notes |
-| --- | --- | --- |
-| App UI (`https://crikket.kodegt.com`) | `3001` | Next.js |
-| API (`BETTER_AUTH_URL` / `NEXT_PUBLIC_SERVER_URL`) | `3000` | Hono |
+### Postgres volume
 
-Same-host `/api` + `/rpc` routing (like the bundled Caddyfile) can be done with
-Coolify's proxy extra config, or a second hostname for port `3000`. Do not
-publish `5432` on the Coolify proxy.
+`docker-compose.coolify.yml` mounts an **external** volume named
+`rk2h1ywgegcu9qyq45m4evoz_crikket-pg` so Kode GT production reuses the
+existing Coolify Postgres data.
 
-Host port mapping in the compose file is `${SERVER_PORT:-3000}:3000` and
-`${WEB_PORT:-3001}:3001` on `server`. Coolify's reverse proxy should target
-those **container** ports.
+Self-hosters **must not** keep that name/`external: true` unless they already
+have a volume with that exact name. Change `name` to your volume, or remove
+both `name` and `external` so Compose creates a fresh `postgres_data` volume.
 
 ### Required environment variable names
 
@@ -236,8 +240,7 @@ Optional server: `ALLOWED_SIGNUP_DOMAINS`, `ALLOWED_SIGNUP_EMAILS`, `BETTER_AUTH
 
 **Bundled Postgres service** (only if you use the `postgres` container, not
 Aurora): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
-`POSTGRES_HOST_AUTH_METHOD`, `POSTGRES_PORT`. Then point `DATABASE_URL` at
-hostname `postgres`.
+`POSTGRES_HOST_AUTH_METHOD`. Then point `DATABASE_URL` at hostname `postgres`.
 
 For Kode GT production with Aurora + MinIO, set `DATABASE_URL` to Aurora and
 MinIO via `STORAGE_ENDPOINT` + `STORAGE_ADDRESSING_STYLE=path`. The compose
