@@ -29,6 +29,9 @@ COPY sdks ./sdks
 
 RUN bun install --frozen-lockfile
 RUN bun run build -- --filter=web
+# Drop webpack/turbopack cache so the runtime template copy + entrypoint
+# grep/sed stay fast. next start recreates cache if it needs it.
+RUN rm -rf apps/web/.next/cache
 RUN cp -R apps/web/.next apps/web/.next-template
 RUN chmod +x apps/web/docker-entrypoint.sh
 

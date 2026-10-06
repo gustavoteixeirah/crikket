@@ -7,6 +7,11 @@
 # service on container port 8080. No host port bindings — Coolify's proxy
 # handles exposure. Do not set `container_name` (Coolify assigns names).
 #
+# Public origin defaults below are Kode GT production
+# (https://crikket.kodegt.com), not secrets. Self-hosters MUST override
+# NEXT_PUBLIC_SITE_URL / APP_URL / SERVER_URL, BETTER_AUTH_URL, and
+# CORS_ORIGINS for their own domain.
+#
 # The postgres volume is an **external** Coolify volume so Kode GT production
 # reuses existing data. Self-hosters must change `name` or remove `external`
 # (and the `name`) so Compose creates a new volume.
@@ -25,13 +30,13 @@ x-server-environment: &server-environment
   NODE_ENV: production
   PORT: "3000"
   DATABASE_URL: ${DATABASE_URL:-}
-  CORS_ORIGINS: ${CORS_ORIGINS:-}
+  CORS_ORIGINS: ${CORS_ORIGINS:-https://crikket.kodegt.com}
   ALLOWED_SIGNUP_DOMAINS: ${ALLOWED_SIGNUP_DOMAINS:-}
   ALLOWED_SIGNUP_EMAILS: ${ALLOWED_SIGNUP_EMAILS:-}
   UPSTASH_REDIS_REST_URL: ${UPSTASH_REDIS_REST_URL:-}
   UPSTASH_REDIS_REST_TOKEN: ${UPSTASH_REDIS_REST_TOKEN:-}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
-  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://crikket.kodegt.com}
   BETTER_AUTH_COOKIE_DOMAIN: ${BETTER_AUTH_COOKIE_DOMAIN:-}
   RESEND_API_KEY: ${RESEND_API_KEY:-}
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
@@ -90,16 +95,19 @@ services:
     environment:
       <<: *server-environment
     healthcheck:
+      # 127.0.0.1: Alpine/bun may resolve localhost to ::1 first; the
+      # process binds IPv4. GET / returns 200 "OK".
       test:
         [
           "CMD",
           "bun",
           "-e",
-          "fetch('http://localhost:3000').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+          "fetch('http://127.0.0.1:3000/',{redirect:'manual'}).then((r)=>process.exit(r.status>=200&&r.status<400?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 10s
       timeout: 5s
       retries: 12
+      start_period: 60s
 
   migrate:
     <<: *server-image
@@ -135,9 +143,9 @@ services:
     network_mode: "service:server"
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
-      NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://crikket.kodegt.com}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://crikket.kodegt.com}
+      NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-https://crikket.kodegt.com}
       NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
       NEXT_PUBLIC_CRIKKET_KEY: ${NEXT_PUBLIC_CRIKKET_KEY:-}
       NEXT_PUBLIC_DEMO_URL: ${NEXT_PUBLIC_DEMO_URL:-}
@@ -146,16 +154,21 @@ services:
       VITE_APP_URL: ${VITE_APP_URL:-}
       VITE_SERVER_URL: ${VITE_SERVER_URL:-}
     healthcheck:
+      # 127.0.0.1: Next starts with --hostname 0.0.0.0 (IPv4 only); localhost
+      # in Alpine often resolves to ::1 and the fetch is refused.
+      # /login is a public 200. Unauthenticated GET / 307s to /login and may
+      # follow to the public hostname before proxy is up. Accept 2xx/3xx.
       test:
         [
           "CMD",
           "bun",
           "-e",
-          "fetch('http://localhost:3001').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+          "fetch('http://127.0.0.1:3001/login',{redirect:'manual'}).then((r)=>process.exit(r.status>=200&&r.status<400?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 10s
       timeout: 5s
       retries: 12
+      start_period: 180s
 
   proxy:
     image: caddy:2.10-alpine
@@ -166,7 +179,9 @@ services:
       server:
         condition: service_healthy
       web:
-        condition: service_healthy
+        # Do not wait on web healthy: a slow/failed UI check must not block
+        # /api routing. The old GHCR stack only needed web to start.
+        condition: service_started
 
 volumes:
   postgres_data:
